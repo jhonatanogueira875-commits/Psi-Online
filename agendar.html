@@ -190,8 +190,22 @@
     });
 
     if (error || data?.error) {
+      let mensagem = data?.error || error.message;
+
+      // Quando a função responde com status de erro (4xx/5xx), o supabase-js
+      // não coloca o corpo da resposta em "data" — precisamos ler manualmente
+      // de dentro do erro para pegar o motivo real, não só o texto genérico.
+      if (error?.context) {
+        try {
+          const corpo = await error.context.json();
+          if (corpo?.error) mensagem = corpo.error;
+        } catch (e) {
+          // se não der pra ler o corpo, fica com a mensagem genérica mesmo
+        }
+      }
+
       resultadoDiv.className = "erro";
-      resultadoDiv.textContent = "❌ Não foi possível iniciar o pagamento: " + (data?.error || error.message);
+      resultadoDiv.textContent = "❌ Não foi possível iniciar o pagamento: " + mensagem;
       btn.disabled = false;
       btn.textContent = "Solicitar";
       return;
