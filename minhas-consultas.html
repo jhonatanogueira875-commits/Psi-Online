@@ -42,6 +42,9 @@
 
 <a class="voltar" href="providers.html">← Ver profissionais</a>
 <h1>Minhas consultas</h1>
+<label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#5A655D; margin-bottom:16px;">
+  <input type="checkbox" id="mostrar-canceladas"> Mostrar consultas canceladas
+</label>
 
 <div id="lista"><div class="vazio">Carregando…</div></div>
 
@@ -112,7 +115,16 @@
     (psicologos || []).forEach(p => nomesPorId[p.id] = p.full_name);
 
     lista.innerHTML = "";
-    consultas.forEach(c => {
+
+    const mostrarCanceladas = document.getElementById("mostrar-canceladas").checked;
+    const canceladas = consultas.filter(c => c.status === "cancelled");
+    const visiveis = mostrarCanceladas ? consultas : consultas.filter(c => c.status !== "cancelled");
+
+    if (visiveis.length === 0 && canceladas.length > 0) {
+      lista.innerHTML = '<div class="vazio">Todas as suas consultas foram canceladas. Marque a caixa acima para vê-las.</div>';
+    }
+
+    visiveis.forEach(c => {
       const div = document.createElement("div");
       div.className = "card-consulta";
 
@@ -157,6 +169,7 @@
   }
 
   carregar();
+  document.getElementById("mostrar-canceladas").addEventListener("change", carregar);
 
   document.getElementById("btn-excluir-conta").addEventListener("click", async () => {
     const confirmar = confirm(

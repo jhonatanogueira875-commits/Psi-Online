@@ -41,6 +41,11 @@
     padding: 24px;
   }
   .marca{ font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px; }
+  header nav{
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
   header nav a{
     text-decoration: none;
     font-size: 14px;
@@ -48,6 +53,10 @@
     border: 1px solid var(--sage);
     padding: 8px 16px;
     border-radius: 4px;
+  }
+  header nav a.btn-criar{
+    background: var(--sage);
+    color: #fff;
   }
 
   /* Hero */
@@ -159,7 +168,10 @@
 
 <header>
   <div class="marca">Psi Online</div>
-  <nav><a href="login.html">Entrar</a></nav>
+  <nav>
+    <a href="login.html">Entrar</a>
+    <a href="cadastro.html" class="btn-criar">Criar conta</a>
+  </nav>
 </header>
 
 <section class="hero wrap">

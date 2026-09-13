@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Psi Online — Teste de Cadastro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Psi Online — Cadastro</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 20px; }
@@ -18,8 +19,7 @@
 <body>
 
 <a href="index.html" style="color:#1a73e8; text-decoration:none; font-size:14px;">← Voltar para o início</a>
-<h1>🧪 Psi Online — Teste de Cadastro (signUp real)</h1>
-<p>Essa página só serve para testar o trigger <code>handle_new_user</code>. Não é o app final.</p>
+<h1>Psi Online — Criar Conta</h1>
 
 <form id="form-cadastro">
   <label>Nome completo</label>
@@ -75,7 +75,7 @@
 
     const resultadoDiv = document.getElementById("resultado");
     resultadoDiv.className = "";
-    resultadoDiv.textContent = "Enviando...";
+    resultadoDiv.textContent = "Criando conta...";
 
     const { data, error } = await supabaseClient.auth.signUp({
       email,
@@ -89,8 +89,8 @@
     } else {
       resultadoDiv.className = "ok";
       resultadoDiv.innerHTML =
-        "✅ Cadastro enviado!<br>User ID: " + data.user?.id +
-        "<br><br>Redirecionando para o login em <span id='contador'>4</span>s… " +
+        "✅ Cadastro realizado com sucesso!<br>" +
+        "Redirecionando para o login em <span id='contador'>4</span>s… " +
         "<a href='login.html'>ir agora</a>";
 
       let segundos = 4;
