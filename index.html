@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Psi Online — Cuidado psicológico, onde você estiver</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+  :root{
+    --ink: #1F2A24;
+    --bg: #FAF7F2;
+    --sage: #3F6659;
+    --sage-light: #E4ECE6;
+    --ochre: #C89B3C;
+    --line: #D9D2C7;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin: 0;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+  }
+  h1, h2, h3{
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    margin: 0;
+  }
+  a{ color: inherit; }
+  .wrap{ max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+  }
+  .marca{ font-family: 'Fraunces', serif; font-weight: 600; font-size: 20px; }
+  header nav a{
+    text-decoration: none;
+    font-size: 14px;
+    color: var(--sage);
+    border: 1px solid var(--sage);
+    padding: 8px 16px;
+    border-radius: 4px;
+  }
+
+  /* Hero */
+  .hero{
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 48px;
+    align-items: center;
+    padding: 48px 24px 88px;
+  }
+  .hero h1{
+    font-size: clamp(34px, 5vw, 52px);
+    line-height: 1.12;
+    max-width: 11ch;
+  }
+  .hero p{
+    font-size: 18px;
+    max-width: 42ch;
+    color: #4A554E;
+    margin-top: 20px;
+  }
+  .hero-art{ width: 100%; height: auto; }
+
+  /* Como funciona */
+  .como-funciona{ padding: 40px 24px 96px; }
+  .como-funciona h2{ font-size: 28px; margin-bottom: 48px; max-width: 20ch; }
+  .passos{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    position: relative;
+  }
+  .passos::before{
+    content: "";
+    position: absolute;
+    top: 19px;
+    left: 6%;
+    right: 6%;
+    height: 1px;
+    background: var(--line);
+  }
+  .passo{ position: relative; padding-right: 24px; }
+  .passo .num{
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--bg);
+    background: var(--sage);
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 1;
+    margin-bottom: 20px;
+  }
+  .passo h3{ font-size: 18px; margin-bottom: 8px; }
+  .passo p{ font-size: 14px; color: #5A655D; margin: 0; max-width: 30ch; }
+
+  /* Painel dividido: paciente / psicólogo */
+  .caminhos{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .caminho{
+    padding: 64px 48px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: background .15s ease;
+  }
+  .caminho:hover{ background: rgba(0,0,0,0.02); }
+  .caminho.paciente{ background: var(--sage-light); border-right: 1px solid var(--line); }
+  .caminho.psicologo{ background: #FBF3E3; }
+  .caminho .eyebrow{ font-size: 14px; color: #5A655D; margin-bottom: 8px; display: block; }
+  .caminho h3{ font-size: 26px; margin-bottom: 12px; }
+  .caminho p{ font-size: 15px; color: #4A554E; max-width: 34ch; margin: 0 0 24px; }
+  .caminho .seta{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .caminho.paciente .seta{ color: var(--sage); }
+  .caminho.psicologo .seta{ color: var(--ochre); }
+
+  footer{
+    padding: 32px 24px;
+    text-align: center;
+    font-size: 13px;
+    color: #8a8f8a;
+  }
+
+  @media (max-width: 760px){
+    .hero{ grid-template-columns: 1fr; padding-bottom: 56px; }
+    .hero-art{ order: -1; max-width: 220px; margin: 0 auto; }
+    .passos{ grid-template-columns: 1fr; gap: 32px; }
+    .passos::before{ display: none; }
+    .caminhos{ grid-template-columns: 1fr; }
+    .caminho.paciente{ border-right: none; border-bottom: 1px solid var(--line); }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="marca">Psi Online</div>
+  <nav><a href="login.html">Entrar</a></nav>
+</header>
+
+<section class="hero wrap">
+  <div>
+    <h1>Cuidado psicológico, no seu tempo.</h1>
+    <p>Consultas online com psicólogos verificados. Você escolhe o profissional, o horário e o ritmo — sem sair de casa.</p>
+  </div>
+
+  <svg class="hero-art" viewBox="0 0 360 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustração de duas formas orgânicas sobrepostas, representando acolhimento">
+    <circle cx="150" cy="150" r="120" fill="#E4ECE6"/>
+    <circle cx="230" cy="190" r="86" fill="#C89B3C" opacity="0.85"/>
+    <path d="M 90 150 Q 150 90 210 150 Q 150 210 90 150 Z" fill="#3F6659"/>
+  </svg>
+</section>
+
+<section class="como-funciona wrap">
+  <h2>Do cadastro à primeira sessão, em três passos.</h2>
+  <div class="passos">
+    <div class="passo">
+      <div class="num">1</div>
+      <h3>Cadastre-se</h3>
+      <p>Conta gratuita, criada em poucos minutos.</p>
+    </div>
+    <div class="passo">
+      <div class="num">2</div>
+      <h3>Escolha e agende</h3>
+      <p>Veja a agenda real dos profissionais e marque o horário que funciona para você.</p>
+    </div>
+    <div class="passo">
+      <div class="num">3</div>
+      <h3>Consulte online</h3>
+      <p>Sessão por vídeo, com total privacidade, direto do navegador.</p>
+    </div>
+  </div>
+</section>
+
+<section class="caminhos">
+  <a class="caminho paciente" href="providers.html">
+    <span class="eyebrow">Para quem busca cuidado</span>
+    <h3>Sou paciente</h3>
+    <p>Encontre um psicólogo, veja horários disponíveis e agende sua consulta.</p>
+    <span class="seta">Ver profissionais →</span>
+  </a>
+  <a class="caminho psicologo" href="login.html?tipo=psicologo">
+    <span class="eyebrow">Para quem atende</span>
+    <h3>Sou psicólogo</h3>
+    <p>Organize sua agenda, gerencie pacientes e acompanhe seus atendimentos.</p>
+    <span class="seta">Entrar como psicólogo →</span>
+  </a>
+</section>
+
+<footer>Psi Online — ambiente de desenvolvimento e testes</footer>
+
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Psi Online — Agendar consulta</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  :root{ --ink:#1F2A24; --bg:#FAF7F2; --sage:#3F6659; --sage-light:#E4ECE6; --ochre:#C89B3C; --line:#D9D2C7; --danger:#7a2e22; }
+  *{ box-sizing:border-box; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; max-width:600px; margin:48px auto 80px; padding:0 20px; color:var(--ink); background:var(--bg); }
+  a.voltar{ color:var(--sage); text-decoration:none; font-size:14px; }
+  h1{ font-family:'Fraunces',serif; font-weight:600; font-size:24px; margin:8px 0 4px; }
+  .sub{ font-size:14px; color:#5A655D; margin-bottom:28px; }
+
+  .cabecalho-psi{ display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:28px; }
+  .avatar{ width:52px; height:52px; border-radius:50%; background:var(--sage-light); color:var(--sage); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; font-size:18px; overflow:hidden; flex-shrink:0; }
+  .avatar img{ width:100%; height:100%; object-fit:cover; }
+  .cabecalho-psi .nome{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin:0; }
+  .cabecalho-psi .preco{ font-size:13px; color:#5A655D; margin:2px 0 0; }
+
+  .grupo-data{ margin-bottom:20px; }
+  .grupo-data h3{ font-family:'Fraunces',serif; font-size:15px; font-weight:600; margin:0 0 8px; color:#5A655D; text-transform:capitalize; }
+  .slot{ display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--line); border-radius:6px; padding:12px 16px; margin-bottom:8px; }
+  .slot .horario{ font-weight:600; font-size:14px; }
+  .slot button{ background:var(--sage); color:#fff; border:none; padding:7px 14px; border-radius:4px; font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; }
+  .slot button:hover{ background:#345349; }
+  .slot button:disabled{ opacity:0.6; cursor:default; }
+
+  .vazio, .erro, .aviso{ padding:16px; border-radius:6px; font-size:14px; margin-top:8px; }
+  .vazio{ color:#5A655D; text-align:center; padding:32px 0; }
+  .erro{ background:#fbe9e7; color:var(--danger); }
+  .aviso{ background:#FBF3E3; color:var(--ochre); }
+  .aviso a{ color:var(--ochre); font-weight:600; }
+
+  #resultado{ margin-top:16px; padding:12px; border-radius:6px; font-size:13px; display:none; }
+  #resultado.ok{ display:block; background:var(--sage-light); color:#1e4620; }
+  #resultado.erro{ display:block; background:#fbe9e7; color:var(--danger); }
+</style>
+</head>
+<body>
+
+<a class="voltar" href="providers.html">← Voltar para profissionais</a>
+<h1>Agendar consulta</h1>
+<p class="sub">Escolha um horário disponível abaixo.</p>
+
+<div id="cabecalho-psi" class="cabecalho-psi" style="display:none;">
+  <div class="avatar" id="avatar-psi">?</div>
+  <div>
+    <p class="nome" id="nome-psi"></p>
+    <p class="preco" id="preco-psi"></p>
+  </div>
+</div>
+
+<div id="conteudo"><div class="vazio">Carregando…</div></div>
+<div id="resultado"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const conteudo = document.getElementById("conteudo");
+  const resultadoDiv = document.getElementById("resultado");
+
+  const psicologoId = new URLSearchParams(window.location.search).get("psicologo");
+
+  function iniciais(nome){
+    if (!nome) return "?";
+    return nome.trim().split(/\s+/).slice(0,2).map(p => p[0].toUpperCase()).join("");
+  }
+
+  function formatarPreco(valor){
+    if (valor === null || valor === undefined) return "Sob consulta";
+    return "R$ " + Number(valor).toFixed(2).replace(".", ",") + " / sessão";
+  }
+
+  function formatarDataLonga(dataStr){
+    const [ano, mes, dia] = dataStr.split("-");
+    const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
+    return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+  }
+
+  function formatarHora(hms){ return hms.slice(0, 5); }
+
+  let patientId = null;
+
+  async function iniciar(){
+    if (!psicologoId) {
+      conteudo.innerHTML = '<div class="erro">❌ Link inválido — nenhum profissional informado.</div>';
+      return;
+    }
+
+    // Dados públicos do psicólogo (nome, foto, preço)
+    const { data: psi, error: erroPsi } = await supabaseClient
+      .from("psychologists_public")
+      .select("full_name, avatar_url, session_price")
+      .eq("id", psicologoId)
+      .single();
+
+    if (erroPsi || !psi) {
+      conteudo.innerHTML = '<div class="erro">❌ Profissional não encontrado.</div>';
+      return;
+    }
+
+    document.getElementById("cabecalho-psi").style.display = "flex";
+    document.getElementById("nome-psi").textContent = psi.full_name;
+    document.getElementById("preco-psi").textContent = formatarPreco(psi.session_price);
+    document.getElementById("avatar-psi").innerHTML = psi.avatar_url
+      ? '<img src="' + psi.avatar_url + '" alt="">'
+      : iniciais(psi.full_name);
+
+    // Verifica login
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      conteudo.innerHTML = '<div class="aviso">Você precisa estar logado como paciente para solicitar uma consulta. <a href="login.html?tipo=paciente">Fazer login</a></div>';
+      return;
+    }
+
+    const { data: patient, error: erroPatient } = await supabaseClient
+      .from("patients")
+      .select("id")
+      .eq("profile_id", session.user.id)
+      .single();
+
+    if (erroPatient || !patient) {
+      conteudo.innerHTML = '<div class="erro">❌ Essa conta não é de paciente. Entre com uma conta de paciente para agendar.</div>';
+      return;
+    }
+
+    patientId = patient.id;
+    await carregarHorarios();
+  }
+
+  async function carregarHorarios(){
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    const { data, error } = await supabaseClient
+      .from("availability")
+      .select("id, date, start_time, end_time")
+      .eq("psychologist_id", psicologoId)
+      .eq("status", "open")
+      .gte("date", hoje)
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      conteudo.innerHTML = '<div class="erro">❌ Erro ao carregar horários: ' + error.message + '</div>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      conteudo.innerHTML = '<div class="vazio">Nenhum horário disponível no momento. Volte mais tarde.</div>';
+      return;
+    }
+
+    const porData = {};
+    data.forEach(slot => (porData[slot.date] = porData[slot.date] || []).push(slot));
+
+    conteudo.innerHTML = "";
+    Object.keys(porData).forEach(dataStr => {
+      const grupo = document.createElement("div");
+      grupo.className = "grupo-data";
+      grupo.innerHTML = '<h3>' + formatarDataLonga(dataStr) + '</h3>';
+
+      porData[dataStr].forEach(slot => {
+        const div = document.createElement("div");
+        div.className = "slot";
+        div.innerHTML =
+          '<span class="horario">' + formatarHora(slot.start_time) + ' – ' + formatarHora(slot.end_time) + '</span>' +
+          '<button data-id="' + slot.id + '">Solicitar</button>';
+        grupo.appendChild(div);
+      });
+
+      conteudo.appendChild(grupo);
+    });
+
+    conteudo.querySelectorAll("button[data-id]").forEach(btn => {
+      btn.addEventListener("click", () => solicitar(btn));
+    });
+  }
+
+  async function solicitar(btn){
+    btn.disabled = true;
+    btn.textContent = "Enviando...";
+
+    const { error } = await supabaseClient.from("appointments").insert({
+      availability_id: btn.dataset.id,
+      patient_id: patientId,
+      psychologist_id: psicologoId
+    });
+
+    if (error) {
+      resultadoDiv.className = "erro";
+      resultadoDiv.textContent = "❌ Não foi possível solicitar: " + error.message;
+      btn.disabled = false;
+      btn.textContent = "Solicitar";
+      return;
+    }
+
+    resultadoDiv.className = "ok";
+    resultadoDiv.textContent = "✅ Solicitação enviada! Você será avisado quando o psicólogo confirmar. Acompanhe em \"Minhas consultas\".";
+    await carregarHorarios();
+  }
+
+  iniciar();
+</script>
+
+</body>
+</html>

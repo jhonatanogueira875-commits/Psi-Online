@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Psi Online — Minhas consultas</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  :root{ --ink:#1F2A24; --bg:#FAF7F2; --sage:#3F6659; --sage-light:#E4ECE6; --ochre:#C89B3C; --line:#D9D2C7; --danger:#7a2e22; }
+  *{ box-sizing:border-box; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; max-width:640px; margin:48px auto 80px; padding:0 20px; color:var(--ink); background:var(--bg); }
+  a.voltar{ color:var(--sage); text-decoration:none; font-size:14px; }
+  h1{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; margin:8px 0 24px; }
+
+  .card-consulta{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:20px; margin-bottom:16px; }
+  .topo-card{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .topo-card .quem{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin:0; }
+  .topo-card .quando{ font-size:14px; color:#5A655D; margin:4px 0 0; }
+
+  .badge{ padding:3px 10px; border-radius:20px; font-size:12px; font-weight:500; white-space:nowrap; }
+  .badge.pending{ background:#FBF3E3; color:var(--ochre); }
+  .badge.confirmed{ background:var(--sage-light); color:var(--sage); }
+  .badge.completed{ background:#eef1ef; color:#5A655D; }
+  .badge.cancelled{ background:#fbe9e7; color:var(--danger); }
+
+  .aviso-jitsi{ font-size:13px; color:#5A655D; margin:10px 0; line-height:1.5; }
+  .link-jitsi{ display:inline-block; margin-top:8px; background:var(--sage); color:#fff; text-decoration:none; padding:9px 16px; border-radius:4px; font-size:13px; font-weight:500; }
+  .link-jitsi:hover{ background:#345349; }
+
+  .btn-cancelar{ margin-top:10px; background:none; border:1px solid var(--line); color:var(--danger); padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer; font-family:inherit; }
+  .btn-cancelar:hover{ background:#fbe9e7; border-color:var(--danger); }
+
+  .vazio{ color:#8a8f8a; font-size:14px; padding:40px 0; text-align:center; }
+
+  .secao-conta{ margin-top:40px; padding-top:24px; border-top:1px solid var(--line); }
+  .secao-conta p{ font-size:13px; color:#8a8f8a; margin-bottom:10px; }
+  .btn-excluir-conta{ background:none; border:1px solid var(--danger); color:var(--danger); padding:8px 14px; border-radius:4px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .btn-excluir-conta:hover{ background:#fbe9e7; }
+</style>
+</head>
+<body>
+
+<a class="voltar" href="providers.html">← Ver profissionais</a>
+<h1>Minhas consultas</h1>
+
+<div id="lista"><div class="vazio">Carregando…</div></div>
+
+<div class="secao-conta">
+  <p>Ao excluir sua conta, seus dados pessoais são apagados. O histórico de consultas já realizadas é mantido de forma anônima, conforme nossa política de retenção.</p>
+  <button class="btn-excluir-conta" id="btn-excluir-conta">Excluir minha conta</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const lista = document.getElementById("lista");
+
+  const STATUS_LABEL = { pending: "Aguardando confirmação", confirmed: "Confirmada", completed: "Concluída", cancelled: "Cancelada" };
+
+  function formatarDataHora(dataStr, inicio, fim){
+    const [ano, mes, dia] = dataStr.split("-");
+    const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
+    const dataFormatada = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+    return dataFormatada + " · " + inicio.slice(0,5) + " – " + fim.slice(0,5);
+  }
+
+  async function carregar(){
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      lista.innerHTML = '<div class="vazio">Você precisa estar logado. <a href="login.html?tipo=paciente">Fazer login</a></div>';
+      return;
+    }
+
+    const { data: patient } = await supabaseClient
+      .from("patients")
+      .select("id")
+      .eq("profile_id", session.user.id)
+      .single();
+
+    if (!patient) {
+      lista.innerHTML = '<div class="vazio">Essa conta não é de paciente.</div>';
+      return;
+    }
+
+    const { data: consultas, error } = await supabaseClient
+      .from("appointments")
+      .select("id, status, jitsi_room_url, psychologist_id, availability:availability_id(date, start_time, end_time)")
+      .eq("patient_id", patient.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      lista.innerHTML = '<div class="vazio">❌ Erro ao carregar: ' + error.message + '</div>';
+      return;
+    }
+
+    if (!consultas || consultas.length === 0) {
+      lista.innerHTML = '<div class="vazio">Você ainda não tem consultas. <a href="providers.html">Encontre um psicólogo</a></div>';
+      return;
+    }
+
+    // Busca nomes dos psicólogos de uma vez
+    const idsUnicos = [...new Set(consultas.map(c => c.psychologist_id))];
+    const { data: psicologos } = await supabaseClient
+      .from("psychologists_public")
+      .select("id, full_name")
+      .in("id", idsUnicos);
+
+    const nomesPorId = {};
+    (psicologos || []).forEach(p => nomesPorId[p.id] = p.full_name);
+
+    lista.innerHTML = "";
+    consultas.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "card-consulta";
+
+      let corpoExtra = "";
+      if (c.status === "pending") {
+        corpoExtra = '<p class="aviso-jitsi">Aguardando o psicólogo confirmar este horário.</p>' +
+          '<button class="btn-cancelar" data-id="' + c.id + '">Cancelar solicitação</button>';
+      } else if (c.status === "confirmed") {
+        corpoExtra =
+          '<p class="aviso-jitsi">No horário da consulta, clique no link abaixo. Seu navegador vai pedir permissão de câmera e microfone — aceite para participar. Recomendamos Chrome ou Firefox.</p>' +
+          '<a class="link-jitsi" href="' + c.jitsi_room_url + '" target="_blank" rel="noopener noreferrer">Entrar na sala de vídeo</a><br>' +
+          '<button class="btn-cancelar" data-id="' + c.id + '">Cancelar consulta</button>';
+      }
+
+      div.innerHTML =
+        '<div class="topo-card">' +
+          '<div><p class="quem">' + (nomesPorId[c.psychologist_id] || "Profissional") + '</p>' +
+          '<p class="quando">' + formatarDataHora(c.availability.date, c.availability.start_time, c.availability.end_time) + '</p></div>' +
+          '<span class="badge ' + c.status + '">' + STATUS_LABEL[c.status] + '</span>' +
+        '</div>' +
+        corpoExtra;
+
+      lista.appendChild(div);
+    });
+
+    lista.querySelectorAll(".btn-cancelar").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Cancelar esta consulta?")) return;
+        btn.disabled = true;
+        const { error: erroCancelar } = await supabaseClient
+          .from("appointments")
+          .update({ status: "cancelled" })
+          .eq("id", btn.dataset.id);
+        if (erroCancelar) {
+          alert("Erro ao cancelar: " + erroCancelar.message);
+          btn.disabled = false;
+          return;
+        }
+        await carregar();
+      });
+    });
+  }
+
+  carregar();
+
+  document.getElementById("btn-excluir-conta").addEventListener("click", async () => {
+    const confirmar = confirm(
+      "Tem certeza que deseja excluir sua conta?\n\n" +
+      "Seus dados pessoais serão apagados e você não poderá mais fazer login. Essa ação não pode ser desfeita."
+    );
+    if (!confirmar) return;
+
+    const { error } = await supabaseClient.rpc("delete_my_account");
+
+    if (error) {
+      alert("Erro ao excluir conta: " + error.message);
+      return;
+    }
+
+    await supabaseClient.auth.signOut();
+    alert("Sua conta foi excluída. Você será redirecionado para a página inicial.");
+    window.location.href = "index.html";
+  });
+</script>
+
+</body>
+</html>

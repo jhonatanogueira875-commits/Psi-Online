@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Psi Online — Login</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  body { font-family: 'IBM Plex Sans', system-ui, sans-serif; max-width: 420px; margin: 60px auto; padding: 0 16px; color: #1F2A24; background: #FAF7F2; }
+  .voltar { color: #3F6659; text-decoration: none; font-size: 14px; }
+  h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 26px; margin-top: 8px; }
+  label { display: block; margin-top: 14px; font-size: 14px; font-weight: 600; }
+  input { width: 100%; padding: 9px; margin-top: 4px; box-sizing: border-box; font-size: 14px; border: 1px solid #D9D2C7; border-radius: 4px; font-family: inherit; }
+  button { margin-top: 20px; padding: 10px 18px; font-size: 14px; cursor: pointer; background: #3F6659; color: #fff; border: none; border-radius: 4px; font-family: inherit; font-weight: 500; }
+  button:hover { background: #345349; }
+  #resultado { margin-top: 20px; padding: 12px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .ok { background: #E4ECE6; color: #1e4620; }
+  .erro { background: #fbe9e7; color: #7a2e22; }
+  .links { margin-top: 16px; font-size: 13px; }
+  .links a { color: #C89B3C; }
+  #btn-logout { background: #7a2e22; }
+</style>
+</head>
+<body>
+
+<a href="index.html" class="voltar">← Voltar</a>
+<h1 id="titulo-login">🔐 Psi Online — Login</h1>
+
+<form id="form-login">
+  <label>Email</label>
+  <input type="email" id="email" required>
+
+  <label>Senha</label>
+  <input type="password" id="password" required>
+
+  <button type="submit">Entrar</button>
+</form>
+
+<div id="resultado"></div>
+
+<div class="links">
+  Ainda não tem conta? <a href="teste-cadastro.html">Cadastre-se aqui</a>
+  <br>
+  <button id="btn-logout" style="margin-top:10px; display:none;">Sair</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const resultadoDiv = document.getElementById("resultado");
+  const btnLogout = document.getElementById("btn-logout");
+
+  const tipo = new URLSearchParams(window.location.search).get("tipo");
+  const tituloEl = document.getElementById("titulo-login");
+  if (tipo === "paciente") tituloEl.textContent = "🔐 Área do Paciente";
+  if (tipo === "psicologo") tituloEl.textContent = "🔐 Área do Psicólogo";
+
+  // Se já houver sessão ativa (ex: recarregou a página), mostra direto
+  async function checarSessaoAtual() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      await mostrarPerfilLogado(session.user.id);
+    }
+  }
+
+  async function mostrarPerfilLogado(userId) {
+    const { data: perfil, error } = await supabaseClient
+      .from("profiles")
+      .select("full_name, email, role, status")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      resultadoDiv.className = "erro";
+      resultadoDiv.textContent = "⚠️ Login ok, mas não consegui ler o perfil:\n" + error.message;
+      return;
+    }
+
+    if (perfil.status === "deleted") {
+      await supabaseClient.auth.signOut();
+      resultadoDiv.className = "erro";
+      resultadoDiv.textContent = "❌ Esta conta foi excluída pelo próprio usuário e não pode mais ser acessada.";
+      return;
+    }
+
+    if (perfil.status === "blocked") {
+      await supabaseClient.auth.signOut();
+      resultadoDiv.className = "erro";
+      resultadoDiv.textContent = "❌ Esta conta está bloqueada. Entre em contato com o suporte.";
+      return;
+    }
+
+    resultadoDiv.className = "ok";
+    resultadoDiv.textContent =
+      "✅ Logado como:\n" +
+      "Nome: " + (perfil.full_name || "(não informado)") + "\n" +
+      "Email: " + perfil.email + "\n" +
+      "Papel: " + perfil.role;
+
+    if (perfil.role === "psychologist") {
+      const link = document.createElement("a");
+      link.href = "perfil-profissional.html";
+      link.textContent = "→ Completar perfil profissional";
+      link.style.display = "block";
+      link.style.marginTop = "12px";
+      link.style.color = "#C89B3C";
+      link.style.fontWeight = "600";
+      resultadoDiv.appendChild(link);
+
+      const linkAgenda = document.createElement("a");
+      linkAgenda.href = "agenda.html";
+      linkAgenda.textContent = "→ Minha agenda";
+      linkAgenda.style.display = "block";
+      linkAgenda.style.marginTop = "8px";
+      linkAgenda.style.color = "#3F6659";
+      linkAgenda.style.fontWeight = "600";
+      resultadoDiv.appendChild(linkAgenda);
+    }
+
+    if (perfil.role === "patient") {
+      const linkConsultas = document.createElement("a");
+      linkConsultas.href = "minhas-consultas.html";
+      linkConsultas.textContent = "→ Minhas consultas";
+      linkConsultas.style.display = "block";
+      linkConsultas.style.marginTop = "12px";
+      linkConsultas.style.color = "#3F6659";
+      linkConsultas.style.fontWeight = "600";
+      resultadoDiv.appendChild(linkConsultas);
+    }
+
+    btnLogout.style.display = "inline-block";
+  }
+
+  document.getElementById("form-login").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    resultadoDiv.className = "";
+    resultadoDiv.textContent = "Entrando...";
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      resultadoDiv.className = "erro";
+      resultadoDiv.textContent = "❌ Erro ao entrar:\n" + error.message;
+      return;
+    }
+
+    await mostrarPerfilLogado(data.user.id);
+  });
+
+  btnLogout.addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    resultadoDiv.className = "";
+    resultadoDiv.textContent = "Sessão encerrada.";
+    btnLogout.style.display = "none";
+  });
+
+  checarSessaoAtual();
+</script>
+
+</body>
+</html>

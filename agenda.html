@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Psi Online — Minha Agenda</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  :root{ --ink:#1F2A24; --bg:#FAF7F2; --sage:#3F6659; --sage-light:#E4ECE6; --ochre:#C89B3C; --line:#D9D2C7; --danger:#7a2e22; }
+  *{ box-sizing:border-box; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; max-width:680px; margin:48px auto 80px; padding:0 20px; color:var(--ink); background:var(--bg); }
+  a.voltar{ color:var(--sage); text-decoration:none; font-size:14px; }
+  h1{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; margin:8px 0 4px; }
+  h2{ font-family:'Fraunces',serif; font-weight:600; font-size:18px; margin:0 0 16px; }
+  .sub{ font-size:14px; color:#5A655D; margin-bottom:28px; }
+
+  .painel{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:24px; margin-bottom:32px; }
+
+  label{ display:block; font-size:13px; font-weight:600; margin-bottom:4px; }
+  input[type="date"], input[type="time"]{ width:100%; padding:9px; font-size:14px; border:1px solid var(--line); border-radius:4px; font-family:inherit; background:#fff; }
+  .linha-form{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:14px; }
+  .repetir{ display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:16px; }
+  .repetir input{ width:auto; }
+  .repetir select{ padding:5px 8px; font-size:13px; border:1px solid var(--line); border-radius:4px; font-family:inherit; }
+
+  button{ cursor:pointer; font-family:inherit; border:none; border-radius:4px; }
+  .btn-principal{ background:var(--sage); color:#fff; padding:10px 18px; font-size:14px; font-weight:500; }
+  .btn-principal:hover{ background:#345349; }
+  .btn-principal:disabled{ opacity:0.6; cursor:default; }
+
+  #resultado-form{ margin-top:14px; padding:10px 12px; border-radius:6px; font-size:13px; display:none; }
+  #resultado-form.ok{ display:block; background:var(--sage-light); color:#1e4620; }
+  #resultado-form.erro{ display:block; background:#fbe9e7; color:var(--danger); }
+
+  .grupo-data{ margin-bottom:20px; }
+  .grupo-data h3{ font-family:'Fraunces',serif; font-size:15px; font-weight:600; margin:0 0 8px; color:#5A655D; text-transform:capitalize; }
+  .slot{ display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--line); border-radius:6px; padding:12px 16px; margin-bottom:8px; }
+  .slot .horario{ font-weight:600; font-size:14px; }
+  .badge{ display:inline-block; margin-left:10px; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:500; }
+  .badge.open{ background:var(--sage-light); color:var(--sage); }
+  .badge.blocked{ background:#f0ece2; color:#8a7a4a; }
+  .badge.booked{ background:#FBF3E3; color:var(--ochre); }
+  .acoes{ display:flex; gap:8px; }
+  .acoes button{ background:none; border:1px solid var(--line); padding:6px 12px; font-size:12px; color:var(--ink); }
+  .acoes button:hover{ background:var(--sage-light); border-color:var(--sage); }
+  .acoes button.excluir:hover{ background:#fbe9e7; border-color:var(--danger); color:var(--danger); }
+
+  .vazio{ color:#8a8f8a; font-size:14px; padding:24px 0; text-align:center; }
+
+  .card-consulta{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:12px; }
+  .topo-card{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+  .topo-card .quem{ font-family:'Fraunces',serif; font-size:16px; font-weight:600; margin:0; }
+  .topo-card .quando{ font-size:13px; color:#5A655D; margin:4px 0 0; }
+  .badge.pending{ background:#FBF3E3; color:var(--ochre); }
+  .badge.confirmed{ background:var(--sage-light); color:var(--sage); }
+  .badge.completed{ background:#eef1ef; color:#5A655D; }
+  .aviso-jitsi{ font-size:13px; color:#5A655D; margin:8px 0; }
+  .link-jitsi{ display:inline-block; background:var(--sage); color:#fff; text-decoration:none; padding:7px 14px; border-radius:4px; font-size:13px; font-weight:500; margin-bottom:8px; }
+  .acoes-consulta{ display:flex; gap:8px; margin-top:8px; }
+  .acoes-consulta button{ font-size:12px; padding:6px 12px; border-radius:4px; border:1px solid var(--line); background:#fff; cursor:pointer; font-family:inherit; }
+  .acoes-consulta button.confirmar{ background:var(--sage); color:#fff; border-color:var(--sage); }
+  .acoes-consulta button.confirmar:hover{ background:#345349; }
+  .acoes-consulta button.cancelar:hover{ background:#fbe9e7; border-color:var(--danger); color:var(--danger); }
+  .acoes-consulta button.concluir:hover{ background:var(--sage-light); border-color:var(--sage); }
+</style>
+</head>
+<body>
+
+<a class="voltar" href="login.html?tipo=psicologo">← Voltar</a>
+<h1>Minha agenda</h1>
+<p class="sub">Abra horários para que pacientes possam solicitar consultas.</p>
+
+<div class="painel">
+  <h2>Abrir novo horário</h2>
+  <form id="form-slot">
+    <div class="linha-form">
+      <div>
+        <label>Data</label>
+        <input type="date" id="data" required>
+      </div>
+      <div>
+        <label>Início</label>
+        <input type="time" id="inicio" required>
+      </div>
+      <div>
+        <label>Fim</label>
+        <input type="time" id="fim" required>
+      </div>
+    </div>
+    <div class="repetir">
+      <input type="checkbox" id="repetir">
+      <label for="repetir" style="margin:0; font-weight:400;">Repetir toda semana, nas próximas</label>
+      <select id="qtd-semanas">
+        <option value="2">2 semanas</option>
+        <option value="4" selected>4 semanas</option>
+        <option value="8">8 semanas</option>
+      </select>
+    </div>
+    <button type="submit" class="btn-principal" id="btn-salvar">Abrir horário</button>
+    <div id="resultado-form"></div>
+  </form>
+</div>
+
+<h2>Solicitações e consultas</h2>
+<div id="carregando-consultas" class="vazio">Carregando…</div>
+<div id="lista-consultas"></div>
+
+<h2>Horários cadastrados</h2>
+<div id="carregando" class="vazio">Carregando…</div>
+<div id="lista"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const resultadoForm = document.getElementById("resultado-form");
+  const lista = document.getElementById("lista");
+  const carregando = document.getElementById("carregando");
+
+  const STATUS_LABEL = { open: "Livre", blocked: "Bloqueado", booked: "Reservado" };
+
+  let psychologistId = null;
+
+  function mostrarMensagem(el, tipo, texto){
+    el.className = tipo;
+    el.textContent = texto;
+  }
+
+  async function iniciar(){
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      window.location.href = "login.html?tipo=psicologo";
+      return;
+    }
+
+    const { data: psi, error } = await supabaseClient
+      .from("psychologists")
+      .select("id")
+      .eq("profile_id", session.user.id)
+      .single();
+
+    if (error || !psi) {
+      carregando.textContent = "Essa página é apenas para psicólogos cadastrados.";
+      return;
+    }
+
+    psychologistId = psi.id;
+    await carregarSlots();
+    await carregarConsultas();
+  }
+
+  function formatarDataLonga(dataStr){
+    const [ano, mes, dia] = dataStr.split("-");
+    const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
+    return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+  }
+
+  function formatarHora(hms){
+    return hms.slice(0, 5);
+  }
+
+  async function carregarSlots(){
+    const { data, error } = await supabaseClient
+      .from("availability")
+      .select("id, date, start_time, end_time, status")
+      .eq("psychologist_id", psychologistId)
+      .order("date", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    carregando.style.display = "none";
+
+    if (error) {
+      lista.innerHTML = '<div class="vazio">❌ Erro ao carregar: ' + error.message + '</div>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      lista.innerHTML = '<div class="vazio">Nenhum horário cadastrado ainda.</div>';
+      return;
+    }
+
+    const porData = {};
+    data.forEach(slot => {
+      (porData[slot.date] = porData[slot.date] || []).push(slot);
+    });
+
+    lista.innerHTML = "";
+    Object.keys(porData).forEach(data_ => {
+      const grupo = document.createElement("div");
+      grupo.className = "grupo-data";
+      grupo.innerHTML = '<h3>' + formatarDataLonga(data_) + '</h3>';
+
+      porData[data_].forEach(slot => {
+        const div = document.createElement("div");
+        div.className = "slot";
+
+        let acoesHtml = "";
+        if (slot.status === "open") {
+          acoesHtml =
+            '<button data-acao="bloquear" data-id="' + slot.id + '">Bloquear</button>' +
+            '<button class="excluir" data-acao="excluir" data-id="' + slot.id + '">Excluir</button>';
+        } else if (slot.status === "blocked") {
+          acoesHtml =
+            '<button data-acao="reabrir" data-id="' + slot.id + '">Reabrir</button>' +
+            '<button class="excluir" data-acao="excluir" data-id="' + slot.id + '">Excluir</button>';
+        } else {
+          acoesHtml = '<span style="font-size:12px; color:#8a8f8a;">Consulta confirmada</span>';
+        }
+
+        div.innerHTML =
+          '<div><span class="horario">' + formatarHora(slot.start_time) + ' – ' + formatarHora(slot.end_time) + '</span>' +
+          '<span class="badge ' + slot.status + '">' + STATUS_LABEL[slot.status] + '</span></div>' +
+          '<div class="acoes">' + acoesHtml + '</div>';
+
+        grupo.appendChild(div);
+      });
+
+      lista.appendChild(grupo);
+    });
+
+    lista.querySelectorAll("button[data-acao]").forEach(btn => {
+      btn.addEventListener("click", () => executarAcao(btn.dataset.acao, btn.dataset.id));
+    });
+  }
+
+  async function executarAcao(acao, id){
+    if (acao === "excluir") {
+      if (!confirm("Excluir esse horário?")) return;
+      const { error } = await supabaseClient.from("availability").delete().eq("id", id);
+      if (error) { alert("Erro ao excluir: " + error.message); return; }
+    } else {
+      const novoStatus = acao === "bloquear" ? "blocked" : "open";
+      const { error } = await supabaseClient.from("availability").update({ status: novoStatus }).eq("id", id);
+      if (error) { alert("Erro ao atualizar: " + error.message); return; }
+    }
+    await carregarSlots();
+  }
+
+  const STATUS_LABEL_CONSULTA = { pending: "Aguardando sua confirmação", confirmed: "Confirmada", completed: "Concluída", cancelled: "Cancelada" };
+
+  function formatarDataHora(dataStr, inicio, fim){
+    const [ano, mes, dia] = dataStr.split("-");
+    const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
+    return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }) +
+      " · " + inicio.slice(0,5) + " – " + fim.slice(0,5);
+  }
+
+  async function carregarConsultas(){
+    const carregandoConsultas = document.getElementById("carregando-consultas");
+    const listaConsultas = document.getElementById("lista-consultas");
+
+    const { data: consultas, error } = await supabaseClient
+      .from("appointments")
+      .select("id, status, jitsi_room_url, patient_id, availability:availability_id(date, start_time, end_time)")
+      .eq("psychologist_id", psychologistId)
+      .in("status", ["pending", "confirmed"])
+      .order("created_at", { ascending: false });
+
+    carregandoConsultas.style.display = "none";
+
+    if (error) {
+      listaConsultas.innerHTML = '<div class="vazio">❌ Erro ao carregar: ' + error.message + '</div>';
+      return;
+    }
+
+    if (!consultas || consultas.length === 0) {
+      listaConsultas.innerHTML = '<div class="vazio">Nenhuma solicitação no momento.</div>';
+      return;
+    }
+
+    const idsPacientes = [...new Set(consultas.map(c => c.patient_id))];
+    const { data: pacientes } = await supabaseClient
+      .from("patients")
+      .select("id, profile_id")
+      .in("id", idsPacientes);
+
+    const profileIds = (pacientes || []).map(p => p.profile_id);
+    const { data: perfis } = await supabaseClient
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", profileIds);
+
+    const nomePorPatientId = {};
+    (pacientes || []).forEach(p => {
+      const perfil = (perfis || []).find(pf => pf.id === p.profile_id);
+      nomePorPatientId[p.id] = perfil ? perfil.full_name : "Paciente";
+    });
+
+    listaConsultas.innerHTML = "";
+    consultas.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "card-consulta";
+
+      let acoes = "";
+      if (c.status === "pending") {
+        acoes =
+          '<div class="acoes-consulta">' +
+            '<button class="confirmar" data-acao="confirmar" data-id="' + c.id + '">Confirmar</button>' +
+            '<button class="cancelar" data-acao="cancelar" data-id="' + c.id + '">Recusar</button>' +
+          '</div>';
+      } else if (c.status === "confirmed") {
+        acoes =
+          '<p class="aviso-jitsi">Sala de vídeo gerada automaticamente:</p>' +
+          '<a class="link-jitsi" href="' + c.jitsi_room_url + '" target="_blank" rel="noopener noreferrer">Entrar na sala</a>' +
+          '<div class="acoes-consulta">' +
+            '<button class="concluir" data-acao="concluir" data-id="' + c.id + '">Marcar como concluída</button>' +
+            '<button class="cancelar" data-acao="cancelar" data-id="' + c.id + '">Cancelar</button>' +
+          '</div>';
+      }
+
+      div.innerHTML =
+        '<div class="topo-card">' +
+          '<div><p class="quem">' + nomePorPatientId[c.patient_id] + '</p>' +
+          '<p class="quando">' + formatarDataHora(c.availability.date, c.availability.start_time, c.availability.end_time) + '</p></div>' +
+          '<span class="badge ' + c.status + '">' + STATUS_LABEL_CONSULTA[c.status] + '</span>' +
+        '</div>' + acoes;
+
+      listaConsultas.appendChild(div);
+    });
+
+    listaConsultas.querySelectorAll("button[data-acao]").forEach(btn => {
+      btn.addEventListener("click", () => executarAcaoConsulta(btn.dataset.acao, btn.dataset.id));
+    });
+  }
+
+  async function executarAcaoConsulta(acao, id){
+    let novoStatus;
+    if (acao === "confirmar") novoStatus = "confirmed";
+    if (acao === "cancelar") novoStatus = "cancelled";
+    if (acao === "concluir") novoStatus = "completed";
+
+    if (acao === "cancelar" && !confirm("Tem certeza que deseja cancelar essa consulta?")) return;
+
+    const { error } = await supabaseClient
+      .from("appointments")
+      .update({ status: novoStatus })
+      .eq("id", id);
+
+    if (error) { alert("Erro: " + error.message); return; }
+
+    await carregarConsultas();
+    await carregarSlots();
+  }
+
+  document.getElementById("form-slot").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const data = document.getElementById("data").value;
+    const inicio = document.getElementById("inicio").value;
+    const fim = document.getElementById("fim").value;
+    const repetir = document.getElementById("repetir").checked;
+    const qtdSemanas = Number(document.getElementById("qtd-semanas").value);
+
+    if (fim <= inicio) {
+      mostrarMensagem(resultadoForm, "erro", "❌ O horário de fim precisa ser depois do início.");
+      return;
+    }
+
+    const btn = document.getElementById("btn-salvar");
+    btn.disabled = true;
+    btn.textContent = "Salvando...";
+
+    const datas = [data];
+    if (repetir) {
+      const base = new Date(data + "T00:00:00");
+      for (let i = 1; i < qtdSemanas; i++) {
+        const proxima = new Date(base);
+        proxima.setDate(proxima.getDate() + 7 * i);
+        datas.push(proxima.toISOString().slice(0, 10));
+      }
+    }
+
+    const registros = datas.map(d => ({
+      psychologist_id: psychologistId,
+      date: d,
+      start_time: inicio,
+      end_time: fim,
+      status: "open"
+    }));
+
+    const { error } = await supabaseClient.from("availability").insert(registros);
+
+    btn.disabled = false;
+    btn.textContent = "Abrir horário";
+
+    if (error) {
+      mostrarMensagem(resultadoForm, "erro", "❌ Erro ao salvar: " + error.message);
+      return;
+    }
+
+    mostrarMensagem(resultadoForm, "ok", "✅ " + registros.length + " horário(s) aberto(s) com sucesso!");
+    document.getElementById("form-slot").reset();
+    document.getElementById("qtd-semanas").value = "4";
+    await carregarSlots();
+  });
+
+  iniciar();
+</script>
+
+</body>
+</html>

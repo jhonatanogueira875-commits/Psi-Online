@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Psi Online — Encontre um psicólogo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  :root{ --ink:#1F2A24; --bg:#FAF7F2; --sage:#3F6659; --sage-light:#E4ECE6; --ochre:#C89B3C; --line:#D9D2C7; }
+  *{ box-sizing:border-box; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; margin:0; color:var(--ink); background:var(--bg); }
+  header{ display:flex; justify-content:space-between; align-items:center; padding:24px; max-width:1080px; margin:0 auto; }
+  .marca{ font-family:'Fraunces',serif; font-weight:600; font-size:20px; text-decoration:none; color:var(--ink); }
+  header a.voltar{ color:var(--sage); text-decoration:none; font-size:14px; }
+
+  .titulo{ max-width:1080px; margin:16px auto 32px; padding:0 24px; }
+  .titulo h1{ font-family:'Fraunces',serif; font-weight:600; font-size:32px; margin:0 0 8px; }
+  .titulo p{ color:#5A655D; margin:0; font-size:15px; }
+
+  .grid{ max-width:1080px; margin:0 auto; padding:0 24px 64px; display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:20px; }
+
+  .card{ background:#fff; border:1px solid var(--line); border-radius:6px; padding:24px; display:flex; flex-direction:column; cursor:pointer; transition:border-color .15s ease, box-shadow .15s ease; }
+  .card:hover{ border-color:var(--sage); box-shadow:0 2px 12px rgba(63,102,89,0.10); }
+  .avatar{ width:56px; height:56px; border-radius:50%; background:var(--sage-light); color:var(--sage); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; font-size:20px; margin-bottom:16px; flex-shrink:0; overflow:hidden; }
+  .avatar img{ width:100%; height:100%; object-fit:cover; }
+  .card h3{ font-family:'Fraunces',serif; font-size:21px; margin:0 0 8px; }
+  .especialidades{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+  .tag{ font-size:13px; background:var(--sage-light); color:var(--sage); padding:4px 10px; border-radius:12px; }
+  .tag.mais{ background:transparent; color:#8a8f8a; padding:4px 2px; }
+  .bio{ font-size:15px; line-height:1.5; color:#4A554E; margin:0 0 16px; flex-grow:1; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .rodape-card{ display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--line); padding-top:14px; }
+  .preco{ font-weight:600; font-size:16px; }
+  .preco span{ font-weight:400; font-size:12px; color:#8a8f8a; }
+  .btn-agendar{ background:var(--sage); color:#fff; text-decoration:none; padding:8px 14px; border-radius:4px; font-size:13px; font-weight:500; }
+  .btn-agendar:hover{ background:#345349; }
+
+  .vazio, .erro-carregar{ max-width:1080px; margin:40px auto; padding:0 24px; color:#5A655D; }
+
+  /* Modal de detalhe */
+  .overlay{ display:none; position:fixed; inset:0; background:rgba(31,42,36,0.45); align-items:center; justify-content:center; padding:24px; z-index:10; }
+  .overlay.aberto{ display:flex; }
+  .modal{ background:#fff; border-radius:8px; max-width:520px; width:100%; max-height:85vh; overflow-y:auto; padding:32px; position:relative; }
+  .modal-fechar{ position:absolute; top:16px; right:16px; background:none; border:none; font-size:20px; cursor:pointer; color:#8a8f8a; line-height:1; padding:4px; }
+  .modal-fechar:hover{ color:var(--ink); }
+  .modal .avatar{ width:76px; height:76px; font-size:26px; margin-bottom:18px; }
+  .modal h3{ font-family:'Fraunces',serif; font-size:26px; margin:0 0 10px; }
+  .modal .especialidades{ margin-bottom:18px; }
+  .modal .bio{ -webkit-line-clamp:unset; font-size:15px; }
+  .modal .rodape-card{ margin-top:8px; }
+  .modal-links{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; font-size:13px; }
+  .modal-links a{ color:var(--sage); text-decoration:none; }
+  .modal-links a:hover{ text-decoration:underline; }
+  .modal-links .crp-linha{ color:#5A655D; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="marca" href="index.html">Psi Online</a>
+  <a class="voltar" href="login.html">Entrar</a>
+</header>
+
+<div class="titulo">
+  <h1>Encontre um psicólogo</h1>
+  <p>Profissionais verificados, prontos para atender online.</p>
+</div>
+
+<div id="carregando" class="vazio">Carregando profissionais…</div>
+<div id="grid" class="grid"></div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <button class="modal-fechar" id="modal-fechar" aria-label="Fechar">✕</button>
+    <div id="modal-conteudo"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const grid = document.getElementById("grid");
+  const carregando = document.getElementById("carregando");
+
+  function iniciais(nome){
+    if (!nome) return "?";
+    return nome.trim().split(/\s+/).slice(0,2).map(p => p[0].toUpperCase()).join("");
+  }
+
+  function renderizarAvatar(psi){
+    if (psi.avatar_url) {
+      return '<img src="' + psi.avatar_url + '" alt="Foto de ' + (psi.full_name || "profissional") + '">';
+    }
+    return iniciais(psi.full_name);
+  }
+
+  function formatarPreco(valor){
+    if (valor === null || valor === undefined) return "Sob consulta";
+    return "R$ " + Number(valor).toFixed(2).replace(".", ",");
+  }
+
+  function renderizarTags(specialties, limite){
+    const lista = specialties || [];
+    const visiveis = limite ? lista.slice(0, limite) : lista;
+    let html = visiveis.map(s => '<span class="tag">' + s + '</span>').join("");
+    if (limite && lista.length > limite) {
+      html += '<span class="tag mais">+' + (lista.length - limite) + '</span>';
+    }
+    return html;
+  }
+
+  const overlay = document.getElementById("overlay");
+  const modalConteudo = document.getElementById("modal-conteudo");
+
+  function abrirModal(psi){
+    const linkLinkedin = psi.linkedin_url
+      ? '<a href="' + psi.linkedin_url + '" target="_blank" rel="noopener noreferrer">Ver perfil no LinkedIn ↗</a>'
+      : '';
+
+    modalConteudo.innerHTML =
+      '<div class="avatar">' + renderizarAvatar(psi) + '</div>' +
+      '<h3>' + (psi.full_name || "Profissional") + '</h3>' +
+      '<div class="modal-links">' +
+        '<span class="crp-linha">CRP ' + (psi.crp || "—") +
+          ' · <a href="https://cadastro.cfp.org.br/" target="_blank" rel="noopener noreferrer">Verificar registro no CRP ↗</a></span>' +
+        linkLinkedin +
+      '</div>' +
+      '<div class="especialidades">' + renderizarTags(psi.specialties) + '</div>' +
+      '<p class="bio">' + (psi.bio || "Sem descrição no momento.") + '</p>' +
+      '<div class="rodape-card">' +
+        '<div class="preco">' + formatarPreco(psi.session_price) + ' <span>/ sessão</span></div>' +
+        '<a class="btn-agendar" href="agendar.html?psicologo=' + psi.id + '">Agendar</a>' +
+      '</div>';
+    overlay.classList.add("aberto");
+  }
+
+  function fecharModal(){
+    overlay.classList.remove("aberto");
+  }
+
+  document.getElementById("modal-fechar").addEventListener("click", fecharModal);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) fecharModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") fecharModal(); });
+
+  async function carregarPsicologos(){
+    const { data, error } = await supabaseClient
+      .from("psychologists_public")
+      .select("*");
+
+    carregando.remove();
+
+    if (error) {
+      grid.outerHTML = '<div class="erro-carregar">❌ Não foi possível carregar os profissionais:<br>' + error.message + '</div>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      grid.outerHTML = '<div class="vazio">Nenhum profissional disponível no momento.</div>';
+      return;
+    }
+
+    data.forEach(psi => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.tabIndex = 0;
+      card.innerHTML =
+        '<div class="avatar">' + renderizarAvatar(psi) + '</div>' +
+        '<h3>' + (psi.full_name || "Profissional") + '</h3>' +
+        '<div class="especialidades">' + renderizarTags(psi.specialties, 3) + '</div>' +
+        '<p class="bio">' + (psi.bio || "Sem descrição no momento.") + '</p>' +
+        '<div class="rodape-card">' +
+          '<div class="preco">' + formatarPreco(psi.session_price) + ' <span>/ sessão</span></div>' +
+          '<span class="btn-agendar">Ver perfil</span>' +
+        '</div>';
+      card.addEventListener("click", () => abrirModal(psi));
+      card.addEventListener("keydown", (e) => { if (e.key === "Enter") abrirModal(psi); });
+      grid.appendChild(card);
+    });
+  }
+
+  carregarPsicologos();
+</script>
+
+</body>
+</html>

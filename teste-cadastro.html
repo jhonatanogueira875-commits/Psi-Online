@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Psi Online — Teste de Cadastro</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; }
+  label { display: block; margin-top: 14px; font-size: 14px; font-weight: 600; }
+  input, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font-size: 14px; }
+  #crp-field { display: none; }
+  button { margin-top: 20px; padding: 10px 16px; font-size: 14px; cursor: pointer; }
+  #resultado { margin-top: 20px; padding: 12px; border-radius: 6px; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .ok { background: #e6f4ea; color: #1e4620; }
+  .erro { background: #fce8e6; color: #611a15; }
+</style>
+</head>
+<body>
+
+<a href="index.html" style="color:#1a73e8; text-decoration:none; font-size:14px;">← Voltar para o início</a>
+<h1>🧪 Psi Online — Teste de Cadastro (signUp real)</h1>
+<p>Essa página só serve para testar o trigger <code>handle_new_user</code>. Não é o app final.</p>
+
+<form id="form-cadastro">
+  <label>Nome completo</label>
+  <input type="text" id="full_name" required>
+
+  <label>Email</label>
+  <input type="email" id="email" required>
+
+  <label>Senha</label>
+  <input type="password" id="password" minlength="6" required>
+
+  <label>Papel (role)</label>
+  <select id="role">
+    <option value="patient">Paciente</option>
+    <option value="psychologist">Psicólogo</option>
+  </select>
+
+  <div id="crp-field">
+    <label>CRP (obrigatório para psicólogo)</label>
+    <input type="text" id="crp" placeholder="Ex: 06/123456">
+  </div>
+
+  <button type="submit">Cadastrar</button>
+</form>
+
+<div id="resultado"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const roleSelect = document.getElementById("role");
+  const crpField = document.getElementById("crp-field");
+
+  roleSelect.addEventListener("change", () => {
+    crpField.style.display = roleSelect.value === "psychologist" ? "block" : "none";
+  });
+
+  document.getElementById("form-cadastro").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const full_name = document.getElementById("full_name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const role = roleSelect.value;
+    const crp = document.getElementById("crp").value.trim();
+
+    const metadata = { full_name, role };
+    if (role === "psychologist") metadata.crp = crp;
+
+    const resultadoDiv = document.getElementById("resultado");
+    resultadoDiv.className = "";
+    resultadoDiv.textContent = "Enviando...";
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: { data: metadata }
+    });
+
+    if (error) {
+      resultadoDiv.className = "erro";
+      resultadoDiv.textContent = "❌ Erro:\n" + error.message;
+    } else {
+      resultadoDiv.className = "ok";
+      resultadoDiv.innerHTML =
+        "✅ Cadastro enviado!<br>User ID: " + data.user?.id +
+        "<br><br>Redirecionando para o login em <span id='contador'>4</span>s… " +
+        "<a href='login.html'>ir agora</a>";
+
+      let segundos = 4;
+      const contadorEl = document.getElementById("contador");
+      const intervalo = setInterval(() => {
+        segundos--;
+        if (contadorEl) contadorEl.textContent = segundos;
+        if (segundos <= 0) {
+          clearInterval(intervalo);
+          window.location.href = "login.html";
+        }
+      }, 1000);
+    }
+  });
+</script>
+
+</body>
+</html>
