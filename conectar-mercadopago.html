@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Psi Online — Conectar Mercado Pago</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  :root{ --ink:#1F2A24; --bg:#FAF7F2; --sage:#3F6659; --sage-light:#E4ECE6; --ochre:#C89B3C; --line:#D9D2C7; --danger:#7a2e22; }
+  *{ box-sizing:border-box; }
+  body{ font-family:'IBM Plex Sans',system-ui,sans-serif; max-width:520px; margin:60px auto; padding:0 20px; color:var(--ink); background:var(--bg); }
+  a.voltar{ color:var(--sage); text-decoration:none; font-size:14px; }
+  h1{ font-family:'Fraunces',serif; font-weight:600; font-size:24px; margin:8px 0 12px; }
+  p{ font-size:14px; color:#5A655D; line-height:1.6; }
+  .painel{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:24px; margin-top:20px; }
+  .status-conectado{ display:inline-flex; align-items:center; gap:8px; background:var(--sage-light); color:var(--sage); padding:8px 14px; border-radius:20px; font-size:13px; font-weight:500; }
+  button{ margin-top:16px; padding:11px 20px; font-size:14px; cursor:pointer; background:var(--sage); color:#fff; border:none; border-radius:4px; font-family:inherit; font-weight:500; }
+  button:hover{ background:#345349; }
+  #resultado{ margin-top:16px; padding:12px; border-radius:6px; font-size:13px; display:none; }
+  #resultado.erro{ display:block; background:#fbe9e7; color:var(--danger); }
+  #resultado.ok{ display:block; background:var(--sage-light); color:#1e4620; }
+</style>
+</head>
+<body>
+
+<a class="voltar" href="agenda.html">← Voltar para a agenda</a>
+<h1>Conectar conta de recebimento</h1>
+<p>Para receber o valor das suas consultas automaticamente, conecte sua conta do Mercado Pago. O Psi Online nunca tem acesso à sua senha — a conexão é feita direto pelo ambiente seguro do Mercado Pago.</p>
+
+<div class="painel" id="painel">Carregando…</div>
+<div id="resultado"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = "https://dftvnrxotgpmitjwlcxb.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_RoOTSSau2P38yck73_HBdw_LQha87E0";
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // Troque pelo Client ID de TESTE da sua aplicação no Mercado Pago
+  const MP_CLIENT_ID = "COLE_AQUI_O_CLIENT_ID";
+  const REDIRECT_URI = "https://dftvnrxotgpmitjwlcxb.supabase.co/functions/v1/oauth-callback";
+
+  const painel = document.getElementById("painel");
+  const resultadoDiv = document.getElementById("resultado");
+
+  // Mensagens vindas de volta da Edge Function, via query string
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("conectado") === "1") {
+    resultadoDiv.className = "ok";
+    resultadoDiv.textContent = "✅ Conta do Mercado Pago conectada com sucesso!";
+  } else if (params.get("erro")) {
+    resultadoDiv.className = "erro";
+    resultadoDiv.textContent = "❌ Não foi possível conectar: " + decodeURIComponent(params.get("erro"));
+  }
+
+  async function iniciar(){
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) {
+      painel.innerHTML = "Você precisa estar logado como psicólogo. <a href='login.html?tipo=psicologo'>Fazer login</a>";
+      return;
+    }
+
+    const { data: psi } = await supabaseClient
+      .from("psychologists")
+      .select("id")
+      .eq("profile_id", session.user.id)
+      .single();
+
+    if (!psi) {
+      painel.textContent = "Essa página é apenas para contas de psicólogo.";
+      return;
+    }
+
+    // Verifica se já existe conexão (via função própria, já que a tabela
+    // de tokens não é legível diretamente)
+    const { data: jaConectado } = await supabaseClient.rpc("has_payment_account");
+
+    if (jaConectado) {
+      painel.innerHTML =
+        '<span class="status-conectado">✅ Conta conectada</span>' +
+        '<p style="margin-top:14px;">Sua conta do Mercado Pago já está conectada e pronta para receber pagamentos.</p>';
+      return;
+    }
+
+    painel.innerHTML =
+      '<p style="margin:0 0 4px;">Nenhuma conta conectada ainda.</p>' +
+      '<button id="btn-conectar">Conectar Mercado Pago</button>';
+
+    document.getElementById("btn-conectar").addEventListener("click", async () => {
+      const btn = document.getElementById("btn-conectar");
+      btn.disabled = true;
+      btn.textContent = "Redirecionando...";
+
+      const { data: state, error } = await supabaseClient.rpc("create_oauth_state");
+
+      if (error) {
+        resultadoDiv.className = "erro";
+        resultadoDiv.textContent = "❌ Erro ao iniciar conexão: " + error.message;
+        btn.disabled = false;
+        btn.textContent = "Conectar Mercado Pago";
+        return;
+      }
+
+      const authUrl = "https://auth.mercadopago.com.br/authorization" +
+        "?client_id=" + MP_CLIENT_ID +
+        "&response_type=code" +
+        "&platform_id=mp" +
+        "&state=" + state +
+        "&redirect_uri=" + encodeURIComponent(REDIRECT_URI);
+
+      window.location.href = authUrl;
+    });
+  }
+
+  iniciar();
+</script>
+
+</body>
+</html>
