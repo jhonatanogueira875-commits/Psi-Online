@@ -37,7 +37,7 @@
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // Troque pelo Client ID de TESTE da sua aplicação no Mercado Pago
-  const MP_CLIENT_ID = "3473076033111739";
+  const MP_CLIENT_ID = "COLE_AQUI_O_CLIENT_ID";
   const REDIRECT_URI = "https://dftvnrxotgpmitjwlcxb.supabase.co/functions/v1/oauth-callback";
 
   const painel = document.getElementById("painel");
@@ -78,7 +78,19 @@
     if (jaConectado) {
       painel.innerHTML =
         '<span class="status-conectado">✅ Conta conectada</span>' +
-        '<p style="margin-top:14px;">Sua conta do Mercado Pago já está conectada e pronta para receber pagamentos.</p>';
+        '<p style="margin-top:14px;">Sua conta do Mercado Pago já está conectada e pronta para receber pagamentos.</p>' +
+        '<button id="btn-desconectar" style="background:none; border:1px solid #7a2e22; color:#7a2e22;">Desconectar e trocar de conta</button>';
+
+      document.getElementById("btn-desconectar").addEventListener("click", async () => {
+        if (!confirm("Desconectar a conta atual do Mercado Pago?")) return;
+        const { error } = await supabaseClient.rpc("disconnect_payment_account");
+        if (error) {
+          resultadoDiv.className = "erro";
+          resultadoDiv.textContent = "❌ Erro ao desconectar: " + error.message;
+          return;
+        }
+        window.location.reload();
+      });
       return;
     }
 
