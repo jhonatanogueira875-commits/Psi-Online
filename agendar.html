@@ -183,25 +183,22 @@
 
   async function solicitar(btn){
     btn.disabled = true;
-    btn.textContent = "Enviando...";
+    btn.textContent = "Preparando pagamento...";
 
-    const { error } = await supabaseClient.from("appointments").insert({
-      availability_id: btn.dataset.id,
-      patient_id: patientId,
-      psychologist_id: psicologoId
+    const { data, error } = await supabaseClient.functions.invoke("criar-checkout", {
+      body: { availability_id: btn.dataset.id }
     });
 
-    if (error) {
+    if (error || data?.error) {
       resultadoDiv.className = "erro";
-      resultadoDiv.textContent = "❌ Não foi possível solicitar: " + error.message;
+      resultadoDiv.textContent = "❌ Não foi possível iniciar o pagamento: " + (data?.error || error.message);
       btn.disabled = false;
       btn.textContent = "Solicitar";
       return;
     }
 
-    resultadoDiv.className = "ok";
-    resultadoDiv.textContent = "✅ Solicitação enviada! Você será avisado quando o psicólogo confirmar. Acompanhe em \"Minhas consultas\".";
-    await carregarHorarios();
+    // Redireciona o paciente para a página de pagamento do Mercado Pago
+    window.location.href = data.init_point;
   }
 
   iniciar();
