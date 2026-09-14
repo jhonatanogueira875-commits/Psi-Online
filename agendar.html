@@ -65,7 +65,6 @@
   const resultadoDiv = document.getElementById("resultado");
 
   const psicologoId = new URLSearchParams(window.location.search).get("psicologo");
-  let precoConsultaAtual = null;
 
   function iniciais(nome){
     if (!nome) return "?";
@@ -93,6 +92,7 @@
       return;
     }
 
+    // Dados públicos do psicólogo (nome, foto, preço)
     const { data: psi, error: erroPsi } = await supabaseClient
       .from("psychologists_public")
       .select("full_name, avatar_url, session_price")
@@ -104,8 +104,6 @@
       return;
     }
 
-    precoConsultaAtual = psi.session_price;
-
     document.getElementById("cabecalho-psi").style.display = "flex";
     document.getElementById("nome-psi").textContent = psi.full_name;
     document.getElementById("preco-psi").textContent = formatarPreco(psi.session_price);
@@ -113,6 +111,7 @@
       ? '<img src="' + psi.avatar_url + '" alt="">'
       : iniciais(psi.full_name);
 
+    // Verifica login
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
       conteudo.innerHTML = '<div class="aviso">Você precisa estar logado como paciente para solicitar uma consulta. <a href="login.html?tipo=paciente">Fazer login</a></div>';
@@ -186,22 +185,23 @@
     btn.disabled = true;
     btn.textContent = "Preparando pagamento...";
 
-    // Invocando a função "criar-pagamento" implantada na instância dftvnrxotgpmitjwlcxb
-    const { data, error } = await supabaseClient.functions.invoke("criar-pagamento", {
-      body: { 
-        availability_id: btn.dataset.id,
-        price: precoConsultaAtual
-      }
+    const { data, error } = await supabaseClient.functions.invoke("criar-checkout", {
+      body: { availability_id: btn.dataset.id }
     });
 
     if (error || data?.error) {
-      let mensagem = data?.error || error?.message || "Erro desconhecido";
+      let mensagem = data?.error || error.message;
 
+      // Quando a função responde com status de erro (4xx/5xx), o supabase-js
+      // não coloca o corpo da resposta em "data" — precisamos ler manualmente
+      // de dentro do erro para pegar o motivo real, não só o texto genérico.
       if (error?.context) {
         try {
           const corpo = await error.context.json();
           if (corpo?.error) mensagem = corpo.error;
-        } catch (e) {}
+        } catch (e) {
+          // se não der pra ler o corpo, fica com a mensagem genérica mesmo
+        }
       }
 
       resultadoDiv.className = "erro";
@@ -211,14 +211,8 @@
       return;
     }
 
-    if (data?.init_point) {
-      window.location.href = data.init_point;
-    } else {
-      resultadoDiv.className = "erro";
-      resultadoDiv.textContent = "❌ Resposta inválida da Edge Function (init_point ausente).";
-      btn.disabled = false;
-      btn.textContent = "Solicitar";
-    }
+    // Redireciona o paciente para a página de pagamento do Mercado Pago
+    window.location.href = data.init_point;
   }
 
   iniciar();

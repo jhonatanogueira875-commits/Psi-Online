@@ -113,6 +113,9 @@
 </div>
 
 <h2>Solicitações e consultas</h2>
+<label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#5A655D; margin-bottom:12px;">
+  <input type="checkbox" id="mostrar-canceladas-psi"> Mostrar consultas canceladas
+</label>
 <div id="carregando-consultas" class="vazio">Carregando…</div>
 <div id="lista-consultas"></div>
 
@@ -349,7 +352,18 @@
     });
 
     listaConsultas.innerHTML = "";
-    consultas.forEach(c => {
+
+    const mostrarCanceladasPsi = document.getElementById("mostrar-canceladas-psi").checked;
+    const consultasVisiveis = mostrarCanceladasPsi ? consultas : consultas.filter(c => c.status !== "cancelled");
+
+    if (consultasVisiveis.length === 0) {
+      listaConsultas.innerHTML = consultas.length > 0
+        ? '<div class="vazio">Todas as consultas estão canceladas. Marque a caixa acima para vê-las.</div>'
+        : '<div class="vazio">Nenhuma solicitação ou consulta no momento.</div>';
+      return;
+    }
+
+    consultasVisiveis.forEach(c => {
       const div = document.createElement("div");
       div.className = "card-consulta";
 
@@ -478,6 +492,7 @@
   });
 
   iniciar();
+  document.getElementById("mostrar-canceladas-psi").addEventListener("change", carregarConsultas);
 </script>
 
 </body>
