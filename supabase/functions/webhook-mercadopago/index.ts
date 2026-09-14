@@ -8,12 +8,10 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  // CORS
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // TESTE MANUAL (GET)
   if (req.method === "GET") {
     return new Response(
       JSON.stringify({ status: "Webhook Psi Online ativo ✅" }),
@@ -28,7 +26,6 @@ Deno.serve(async (req) => {
     );
 
     const ACCESS_TOKEN = Deno.env.get("MP_ACCESS_TOKEN");
-
     if (!ACCESS_TOKEN) {
       return new Response(
         JSON.stringify({ erro: "MP_ACCESS_TOKEN não configurado." }),
@@ -36,13 +33,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Leitura dos dados da notificação do Mercado Pago
-    const webhook = await req.json();
-    const paymentId = webhook?.data?.id;
+    // Tentar extrair ID tanto do Corpo quanto dos Parâmetros da URL (Query Params)
+    const url = new URL(req.url);
+    const paramId = url.searchParams.get("id") || url.searchParams.get("data.id");
+    const topic = url.searchParams.get("topic") || url.searchParams.get("type");
+
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    let paymentId = body?.data?.id || paramId;
+
+    // Se a notificação for do tipo merchant_order, buscamos o payment_id dentro da ordem
+    if ((topic === "merchant_order" || body?.topic === "merchant_order" || body?.type === "merchant_order") && paramId) {
+      const resOrder = await fetch(`https://api.mercadopago.com/merchant_orders/${paramId}`, {
+        headers: { Authorization: `Bearer ${ACCESS_TOKEN}` }
+      });
+      if (resOrder.ok) {
+        const orderData = await resOrder.json();
+        if (orderData.payments && orderData.payments.length > 0) {
+          // Pega o último pagamento associado à ordem
+          paymentId = orderData.payments[orderData.payments.length - 1].id;
+        }
+      }
+    }
 
     if (!paymentId) {
+      console.log("Webhook recebido sem paymentId processável.");
       return new Response(
-        JSON.stringify({ status: "ignorado", motivo: "Webhook sem payment_id." }),
+        JSON.stringify({ status: "ignorado", motivo: "Webhook sem payment_id processável." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -58,10 +80,9 @@ Deno.serve(async (req) => {
 
     const pagamento = await resposta.json();
 
-    // Se o pagamento ainda não foi aprovado, ignorar no momento
-    if (pagamento.status !== "approved") {
+    if (!resposta.ok || pagamento.status !== "approved") {
       return new Response(
-        JSON.stringify({ status: pagamento.status }),
+        JSON.stringify({ status: pagamento.status || "não_aprovado" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -78,7 +99,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 1. Buscar a disponibilidade para pegar a data, horário e id do psicólogo
+    // 1. Buscar o horário para pegar data, início, fim e psicólogo
     const { data: slot, error: slotError } = await supabase
       .from("availability")
       .select("*")
@@ -93,7 +114,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Evitar duplicidade de agendamento se o webhook enviar 2 notificações seguidas
+    // 2. Evitar duplicidades de inserção no banco
     const { data: appointmentExistente } = await supabase
       .from("appointments")
       .select("id")
@@ -102,12 +123,12 @@ Deno.serve(async (req) => {
 
     if (appointmentExistente) {
       return new Response(
-        JSON.stringify({ status: "pagamento já processado" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ status: "pagamento já processado anteriormente" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 3. Atualizar status do horário para "booked"
+    // 3. Atualizar status do horário na tabela availability para "booked"
     const { error: updateError } = await supabase
       .from("availability")
       .update({ status: "booked" })
@@ -127,21 +148,18 @@ Deno.serve(async (req) => {
         end_time: slot.end_time,
         status: "confirmed",
         payment_id: String(paymentId),
-        amount_paid: pagamento.transaction_amount
+        price: pagamento.transaction_amount || 0
       });
 
     if (insertError) throw insertError;
 
     console.log("=================================");
     console.log("CONSULTA AGENDADA COM SUCESSO!");
-    console.log("Paciente:", patientId);
-    console.log("Psicólogo:", slot.psychologist_id);
-    console.log("Data:", slot.date);
     console.log("=================================");
 
     return new Response(
       JSON.stringify({ status: "ok", agendamento_confirmado: true }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (erro: any) {

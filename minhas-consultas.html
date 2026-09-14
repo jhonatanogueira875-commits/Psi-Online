@@ -15,7 +15,7 @@
   .card-consulta{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:20px; margin-bottom:16px; }
   .topo-card{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
   .topo-card .quem{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin:0; }
-  .topo-card .quando{ font-size:14px; color:#5A655D; margin:4px 0 0; }
+  .topo-card .quando{ font-size:14px; color:#5A655D; margin:4px 0 0; text-transform:capitalize; }
 
   .badge{ padding:3px 10px; border-radius:20px; font-size:12px; font-weight:500; white-space:nowrap; }
   .badge.pending{ background:#FBF3E3; color:var(--ochre); }
@@ -61,13 +61,21 @@
 
   const lista = document.getElementById("lista");
 
-  const STATUS_LABEL = { pending: "Aguardando confirmação", confirmed: "Confirmada", completed: "Concluída", cancelled: "Cancelada" };
+  const STATUS_LABEL = { 
+    pending: "Aguardando confirmação", 
+    confirmed: "Confirmada", 
+    completed: "Concluída", 
+    cancelled: "Cancelada" 
+  };
 
   function formatarDataHora(dataStr, inicio, fim){
+    if (!dataStr) return "Data não informada";
     const [ano, mes, dia] = dataStr.split("-");
     const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
     const dataFormatada = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
-    return dataFormatada + " · " + inicio.slice(0,5) + " – " + fim.slice(0,5);
+    const horaInicio = inicio ? inicio.slice(0,5) : "";
+    const horaFim = fim ? fim.slice(0,5) : "";
+    return dataFormatada + (horaInicio ? " · " + horaInicio + (horaFim ? " – " + horaFim : "") : "");
   }
 
   async function carregar(){
@@ -88,9 +96,10 @@
       return;
     }
 
+    // Busca com suporte direto e fallback para availability
     const { data: consultas, error } = await supabaseClient
       .from("appointments")
-      .select("id, status, jitsi_room_url, psychologist_id, availability:availability_id(date, start_time, end_time)")
+      .select("id, status, jitsi_room_url, psychologist_id, date, start_time, end_time, availability:availability_id(date, start_time, end_time)")
       .eq("patient_id", patient.id)
       .order("created_at", { ascending: false });
 
@@ -104,7 +113,7 @@
       return;
     }
 
-    // Busca nomes dos psicólogos de uma vez
+    // Busca nomes dos psicólogos
     const idsUnicos = [...new Set(consultas.map(c => c.psychologist_id))];
     const { data: psicologos } = await supabaseClient
       .from("psychologists_public")
@@ -122,28 +131,36 @@
 
     if (visiveis.length === 0 && canceladas.length > 0) {
       lista.innerHTML = '<div class="vazio">Todas as suas consultas foram canceladas. Marque a caixa acima para vê-las.</div>';
+      return;
     }
 
     visiveis.forEach(c => {
       const div = document.createElement("div");
       div.className = "card-consulta";
 
+      // Obtém data e hora priorizando as colunas da própria tabela appointments
+      const dataStr = c.date || c.availability?.date;
+      const startTime = c.start_time || c.availability?.start_time;
+      const endTime = c.end_time || c.availability?.end_time;
+
+      const roomUrl = c.jitsi_room_url || `https://meet.jit.si/PsiOnline_${c.id}`;
+
       let corpoExtra = "";
       if (c.status === "pending") {
-        corpoExtra = '<p class="aviso-jitsi">Aguardando o psicólogo confirmar este horário.</p>' +
+        corpoExtra = '<p class="aviso-jitsi">Aguardando confirmação.</p>' +
           '<button class="btn-cancelar" data-id="' + c.id + '">Cancelar solicitação</button>';
       } else if (c.status === "confirmed") {
         corpoExtra =
-          '<p class="aviso-jitsi">No horário da consulta, clique no link abaixo. Seu navegador vai pedir permissão de câmera e microfone — aceite para participar. Recomendamos Chrome ou Firefox.</p>' +
-          '<a class="link-jitsi" href="' + c.jitsi_room_url + '" target="_blank" rel="noopener noreferrer">Entrar na sala de vídeo</a><br>' +
+          '<p class="aviso-jitsi">No horário da consulta, clique no link abaixo. Seu navegador vai pedir permissão de câmera e microfone — aceite para participar.</p>' +
+          '<a class="link-jitsi" href="' + roomUrl + '" target="_blank" rel="noopener noreferrer">Entrar na sala de vídeo</a><br>' +
           '<button class="btn-cancelar" data-id="' + c.id + '">Cancelar consulta</button>';
       }
 
       div.innerHTML =
         '<div class="topo-card">' +
           '<div><p class="quem">' + (nomesPorId[c.psychologist_id] || "Profissional") + '</p>' +
-          '<p class="quando">' + formatarDataHora(c.availability.date, c.availability.start_time, c.availability.end_time) + '</p></div>' +
-          '<span class="badge ' + c.status + '">' + STATUS_LABEL[c.status] + '</span>' +
+          '<p class="quando">' + formatarDataHora(dataStr, startTime, endTime) + '</p></div>' +
+          '<span class="badge ' + c.status + '">' + (STATUS_LABEL[c.status] || c.status) + '</span>' +
         '</div>' +
         corpoExtra;
 
