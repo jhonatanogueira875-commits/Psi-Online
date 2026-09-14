@@ -15,7 +15,7 @@
   .card-consulta{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:20px; margin-bottom:16px; }
   .topo-card{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
   .topo-card .quem{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; margin:0; }
-  .topo-card .quando{ font-size:14px; color:#5A655D; margin:4px 0 0; text-transform:capitalize; }
+  .topo-card .quando{ font-size:14px; color:#5A655D; margin:4px 0 0; }
 
   .badge{ padding:3px 10px; border-radius:20px; font-size:12px; font-weight:500; white-space:nowrap; }
   .badge.pending{ background:#FBF3E3; color:var(--ochre); }
@@ -26,6 +26,7 @@
   .aviso-jitsi{ font-size:13px; color:#5A655D; margin:10px 0; line-height:1.5; }
   .link-jitsi{ display:inline-block; margin-top:8px; background:var(--sage); color:#fff; text-decoration:none; padding:9px 16px; border-radius:4px; font-size:13px; font-weight:500; }
   .link-jitsi:hover{ background:#345349; }
+  .link-jitsi.bloqueado{ background:#d9d2c7; color:#5a655d; cursor:not-allowed; pointer-events:none; }
 
   .btn-cancelar{ margin-top:10px; background:none; border:1px solid var(--line); color:var(--danger); padding:6px 12px; border-radius:4px; font-size:12px; cursor:pointer; font-family:inherit; }
   .btn-cancelar:hover{ background:#fbe9e7; border-color:var(--danger); }
@@ -61,21 +62,40 @@
 
   const lista = document.getElementById("lista");
 
-  const STATUS_LABEL = { 
-    pending: "Aguardando confirmação", 
-    confirmed: "Confirmada", 
-    completed: "Concluída", 
-    cancelled: "Cancelada" 
-  };
+  const STATUS_LABEL = { pending: "Aguardando confirmação", confirmed: "Confirmada", completed: "Concluída", cancelled: "Cancelada" };
 
   function formatarDataHora(dataStr, inicio, fim){
-    if (!dataStr) return "Data a definir";
     const [ano, mes, dia] = dataStr.split("-");
     const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
     const dataFormatada = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
-    const horaInicio = inicio ? inicio.slice(0,5) : "";
-    const horaFim = fim ? fim.slice(0,5) : "";
-    return dataFormatada + (horaInicio ? " · " + horaInicio + (horaFim ? " – " + horaFim : "") : "");
+    return dataFormatada + " · " + inicio.slice(0,5) + " – " + fim.slice(0,5);
+  }
+
+  // A sala só fica clicável entre 15 minutos antes do início e o horário de término
+  // (mesma regra aplicada na tela do psicólogo, para os dois lados ficarem consistentes)
+  function verificarDisponibilidadeSala(dataStr, inicioStr, fimStr){
+    if (!dataStr || !inicioStr) return { liberado: false, msg: "Horário não definido." };
+
+    const agora = new Date();
+    const [ano, mes, dia] = dataStr.split("-");
+    const [horaInicio, minInicio] = inicioStr.split(":");
+
+    const dataInicioConsulta = new Date(Number(ano), Number(mes) - 1, Number(dia), Number(horaInicio), Number(minInicio));
+    const dataLiberacao = new Date(dataInicioConsulta.getTime() - 15 * 60000);
+
+    let dataFimConsulta = new Date(dataInicioConsulta.getTime() + 60 * 60000);
+    if (fimStr) {
+      const [horaFim, minFim] = fimStr.split(":");
+      dataFimConsulta = new Date(Number(ano), Number(mes) - 1, Number(dia), Number(horaFim), Number(minFim));
+    }
+
+    if (agora < dataLiberacao) {
+      return { liberado: false, msg: "A sala será liberada 15 minutos antes do horário da consulta." };
+    } else if (agora > dataFimConsulta) {
+      return { liberado: false, msg: "Esta consulta já foi encerrada." };
+    } else {
+      return { liberado: true, msg: "" };
+    }
   }
 
   async function carregar(){
@@ -96,7 +116,6 @@
       return;
     }
 
-    // Consulta sem colunas inexistentes na tabela appointments
     const { data: consultas, error } = await supabaseClient
       .from("appointments")
       .select("id, status, jitsi_room_url, psychologist_id, availability:availability_id(date, start_time, end_time)")
@@ -113,7 +132,7 @@
       return;
     }
 
-    // Busca nomes dos psicólogos
+    // Busca nomes dos psicólogos de uma vez
     const idsUnicos = [...new Set(consultas.map(c => c.psychologist_id))];
     const { data: psicologos } = await supabaseClient
       .from("psychologists_public")
@@ -131,32 +150,34 @@
 
     if (visiveis.length === 0 && canceladas.length > 0) {
       lista.innerHTML = '<div class="vazio">Todas as suas consultas foram canceladas. Marque a caixa acima para vê-las.</div>';
-      return;
     }
 
     visiveis.forEach(c => {
       const div = document.createElement("div");
       div.className = "card-consulta";
 
-      const slot = c.availability || {};
-      const roomUrl = c.jitsi_room_url || `https://meet.jit.si/PsiOnline_${c.id}`;
-
       let corpoExtra = "";
       if (c.status === "pending") {
-        corpoExtra = '<p class="aviso-jitsi">Aguardando confirmação.</p>' +
+        corpoExtra = '<p class="aviso-jitsi">Aguardando o psicólogo confirmar este horário.</p>' +
           '<button class="btn-cancelar" data-id="' + c.id + '">Cancelar solicitação</button>';
       } else if (c.status === "confirmed") {
+        const statusSala = verificarDisponibilidadeSala(c.availability.date, c.availability.start_time, c.availability.end_time);
+        const classeLink = statusSala.liberado ? "link-jitsi" : "link-jitsi bloqueado";
+        const mensagemSala = statusSala.liberado
+          ? "No horário da consulta, clique no link abaixo. Seu navegador vai pedir permissão de câmera e microfone — aceite para participar. Recomendamos Chrome ou Firefox."
+          : statusSala.msg;
+
         corpoExtra =
-          '<p class="aviso-jitsi">No horário da consulta, clique no link abaixo. Seu navegador vai pedir permissão de câmera e microfone — aceite para participar.</p>' +
-          '<a class="link-jitsi" href="' + roomUrl + '" target="_blank" rel="noopener noreferrer">Entrar na sala de vídeo</a><br>' +
+          '<p class="aviso-jitsi">' + mensagemSala + '</p>' +
+          '<a class="' + classeLink + '" href="' + c.jitsi_room_url + '" target="_blank" rel="noopener noreferrer">Entrar na sala de vídeo</a><br>' +
           '<button class="btn-cancelar" data-id="' + c.id + '">Cancelar consulta</button>';
       }
 
       div.innerHTML =
         '<div class="topo-card">' +
           '<div><p class="quem">' + (nomesPorId[c.psychologist_id] || "Profissional") + '</p>' +
-          '<p class="quando">' + formatarDataHora(slot.date, slot.start_time, slot.end_time) + '</p></div>' +
-          '<span class="badge ' + c.status + '">' + (STATUS_LABEL[c.status] || c.status) + '</span>' +
+          '<p class="quando">' + formatarDataHora(c.availability.date, c.availability.start_time, c.availability.end_time) + '</p></div>' +
+          '<span class="badge ' + c.status + '">' + STATUS_LABEL[c.status] + '</span>' +
         '</div>' +
         corpoExtra;
 

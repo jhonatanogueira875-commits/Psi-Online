@@ -54,12 +54,22 @@
   .badge.pending{ background:#FBF3E3; color:var(--ochre); }
   .badge.confirmed{ background:var(--sage-light); color:var(--sage); }
   .badge.completed{ background:#eef1ef; color:#5A655D; }
+  .badge.cancelled{ background:#fbe9e7; color:var(--danger); }
+
+  .badge-pagamento{ display:inline-block; margin-top:6px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:500; }
+  .badge-pagamento.paid{ background:var(--sage-light); color:var(--sage); }
+  .badge-pagamento.pending{ background:#fbe9e7; color:var(--danger); }
+  .badge-pagamento.failed{ background:#fbe9e7; color:var(--danger); }
+
   .aviso-jitsi{ font-size:13px; color:#5A655D; margin:8px 0; }
   .link-jitsi{ display:inline-block; background:var(--sage); color:#fff; text-decoration:none; padding:7px 14px; border-radius:4px; font-size:13px; font-weight:500; margin-bottom:8px; }
+  .link-jitsi.bloqueado{ background:#d9d2c7; color:#5a655d; cursor:not-allowed; pointer-events:none; }
+
   .acoes-consulta{ display:flex; gap:8px; margin-top:8px; }
   .acoes-consulta button{ font-size:12px; padding:6px 12px; border-radius:4px; border:1px solid var(--line); background:#fff; cursor:pointer; font-family:inherit; }
   .acoes-consulta button.confirmar{ background:var(--sage); color:#fff; border-color:var(--sage); }
   .acoes-consulta button.confirmar:hover{ background:#345349; }
+  .acoes-consulta button.confirmar:disabled{ background:#d9d2c7; border-color:#d9d2c7; cursor:not-allowed; }
   .acoes-consulta button.cancelar:hover{ background:#fbe9e7; border-color:var(--danger); color:var(--danger); }
   .acoes-consulta button.concluir:hover{ background:var(--sage-light); border-color:var(--sage); }
 </style>
@@ -208,7 +218,7 @@
             '<button data-acao="reabrir" data-id="' + slot.id + '">Reabrir</button>' +
             '<button class="excluir" data-acao="excluir" data-id="' + slot.id + '">Excluir</button>';
         } else {
-          acoesHtml = '<span style="font-size:12px; color:#8a8f8a;">Consulta confirmada</span>';
+          acoesHtml = '<span style="font-size:12px; color:#8a8f8a;">Consulta em andamento</span>';
         }
 
         div.innerHTML =
@@ -240,7 +250,19 @@
     await carregarSlots();
   }
 
-  const STATUS_LABEL_CONSULTA = { pending: "Aguardando sua confirmação", confirmed: "Confirmada", completed: "Concluída", cancelled: "Cancelada" };
+  const STATUS_LABEL_CONSULTA = {
+    pending: "Aguardando sua confirmação",
+    confirmed: "Confirmada",
+    completed: "Concluída",
+    cancelled: "Cancelada"
+  };
+
+  const STATUS_PAGAMENTO_LABEL = {
+    paid: "✅ Pagamento confirmado",
+    pending: "⏳ Aguardando pagamento",
+    failed: "❌ Pagamento falhou",
+    refunded: "↩️ Reembolsado"
+  };
 
   function formatarDataHora(dataStr, inicio, fim){
     if(!dataStr) return "Data a definir";
@@ -250,15 +272,43 @@
       " · " + (inicio ? inicio.slice(0,5) : "") + " – " + (fim ? fim.slice(0,5) : "");
   }
 
+  // A sala só fica clicável entre 15 minutos antes do início e o horário de término
+  function verificarDisponibilidadeSala(dataStr, inicioStr, fimStr) {
+    if (!dataStr || !inicioStr) return { liberado: false, msg: "Horário não definido." };
+
+    const agora = new Date();
+    const [ano, mes, dia] = dataStr.split("-");
+    const [horaInicio, minInicio] = inicioStr.split(":");
+
+    const dataInicioConsulta = new Date(Number(ano), Number(mes) - 1, Number(dia), Number(horaInicio), Number(minInicio));
+    const dataLiberacao = new Date(dataInicioConsulta.getTime() - 15 * 60000);
+
+    let dataFimConsulta = new Date(dataInicioConsulta.getTime() + 60 * 60000);
+    if (fimStr) {
+      const [horaFim, minFim] = fimStr.split(":");
+      dataFimConsulta = new Date(Number(ano), Number(mes) - 1, Number(dia), Number(horaFim), Number(minFim));
+    }
+
+    if (agora < dataLiberacao) {
+      return { liberado: false, msg: "A sala será liberada 15 minutos antes do horário agendado." };
+    } else if (agora > dataFimConsulta) {
+      return { liberado: false, msg: "Esta consulta já foi encerrada." };
+    } else {
+      return { liberado: true, msg: "Sala de vídeo da consulta:" };
+    }
+  }
+
   async function carregarConsultas(){
     const carregandoConsultas = document.getElementById("carregando-consultas");
     const listaConsultas = document.getElementById("lista-consultas");
 
+    // Busca as consultas JUNTO com o status do pagamento vinculado —
+    // é isso que faltava para o psicólogo saber se já pode confirmar
     const { data: consultas, error } = await supabaseClient
       .from("appointments")
-      .select("id, status, jitsi_room_url, patient_id, availability:availability_id(date, start_time, end_time)")
+      .select("id, status, jitsi_room_url, patient_id, availability:availability_id(date, start_time, end_time), payments(status)")
       .eq("psychologist_id", psychologistId)
-      .in("status", ["pending", "confirmed"])
+      .in("status", ["pending", "confirmed", "cancelled", "completed"])
       .order("created_at", { ascending: false });
 
     carregandoConsultas.style.display = "none";
@@ -269,26 +319,33 @@
     }
 
     if (!consultas || consultas.length === 0) {
-      listaConsultas.innerHTML = '<div class="vazio">Nenhuma solicitação ou consulta confirmada no momento.</div>';
+      listaConsultas.innerHTML = '<div class="vazio">Nenhuma solicitação ou consulta no momento.</div>';
       return;
     }
 
     const idsPacientes = [...new Set(consultas.map(c => c.patient_id))];
+
+    // O nome do paciente mora em "profiles", não em "patients" —
+    // por isso buscamos em duas etapas: patients -> profile_id -> profiles.full_name
     const { data: pacientes } = await supabaseClient
       .from("patients")
       .select("id, profile_id")
       .in("id", idsPacientes);
 
-    const profileIds = (pacientes || []).map(p => p.profile_id);
-    const { data: perfis } = await supabaseClient
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", profileIds);
+    const profileIds = (pacientes || []).map(p => p.profile_id).filter(Boolean);
+    let perfis = [];
+    if (profileIds.length > 0) {
+      const { data: resPerfis } = await supabaseClient
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", profileIds);
+      perfis = resPerfis || [];
+    }
 
     const nomePorPatientId = {};
     (pacientes || []).forEach(p => {
       const perfil = (perfis || []).find(pf => pf.id === p.profile_id);
-      nomePorPatientId[p.id] = perfil ? perfil.full_name : "Paciente";
+      nomePorPatientId[p.id] = (perfil && perfil.full_name) || "Paciente";
     });
 
     listaConsultas.innerHTML = "";
@@ -297,28 +354,46 @@
       div.className = "card-consulta";
 
       const slot = c.availability || {};
-      const roomUrl = c.jitsi_room_url || `https://meet.jit.si/PsiOnline_${c.id}`;
+      const nomePaciente = nomePorPatientId[c.patient_id] || "Paciente";
+
+      // payments vem como array (relação 1-N a nível de banco), pegamos o primeiro
+      const pagamento = Array.isArray(c.payments) ? c.payments[0] : c.payments;
+      const statusPagamento = pagamento ? pagamento.status : null;
+      const pagamentoConfirmado = statusPagamento === "paid";
+
+      const badgePagamento = statusPagamento
+        ? '<span class="badge-pagamento ' + statusPagamento + '">' + (STATUS_PAGAMENTO_LABEL[statusPagamento] || statusPagamento) + '</span>'
+        : "";
 
       let acoes = "";
       if (c.status === "pending") {
         acoes =
+          badgePagamento +
           '<div class="acoes-consulta">' +
-            '<button class="confirmar" data-acao="confirmar" data-id="' + c.id + '">Confirmar</button>' +
+            '<button class="confirmar" data-acao="confirmar" data-id="' + c.id + '"' +
+              (pagamentoConfirmado ? "" : " disabled title=\"Aguardando confirmação do pagamento\"") + '>Confirmar</button>' +
             '<button class="cancelar" data-acao="cancelar" data-id="' + c.id + '">Recusar</button>' +
           '</div>';
       } else if (c.status === "confirmed") {
+        const statusSala = verificarDisponibilidadeSala(slot.date, slot.start_time, slot.end_time);
+        const classeLink = statusSala.liberado ? "link-jitsi" : "link-jitsi bloqueado";
+        const roomUrl = c.jitsi_room_url || "#";
+
         acoes =
-          '<p class="aviso-jitsi">Sala de vídeo da consulta:</p>' +
-          '<a class="link-jitsi" href="' + roomUrl + '" target="_blank" rel="noopener noreferrer">Entrar na sala</a>' +
+          badgePagamento +
+          '<p class="aviso-jitsi">' + statusSala.msg + '</p>' +
+          '<a class="' + classeLink + '" href="' + roomUrl + '" target="_blank" rel="noopener noreferrer">Entrar na sala</a>' +
           '<div class="acoes-consulta">' +
             '<button class="concluir" data-acao="concluir" data-id="' + c.id + '">Marcar como concluída</button>' +
             '<button class="cancelar" data-acao="cancelar" data-id="' + c.id + '">Cancelar</button>' +
           '</div>';
+      } else {
+        acoes = badgePagamento;
       }
 
       div.innerHTML =
         '<div class="topo-card">' +
-          '<div><p class="quem">' + (nomePorPatientId[c.patient_id] || "Paciente") + '</p>' +
+          '<div><p class="quem">' + nomePaciente + '</p>' +
           '<p class="quando">' + formatarDataHora(slot.date, slot.start_time, slot.end_time) + '</p></div>' +
           '<span class="badge ' + c.status + '">' + (STATUS_LABEL_CONSULTA[c.status] || c.status) + '</span>' +
         '</div>' + acoes;
