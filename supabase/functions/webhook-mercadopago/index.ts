@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Tentar extrair ID tanto do Corpo quanto dos Parâmetros da URL (Query Params)
+    // Extrair ID tanto do Corpo quanto dos Parâmetros da URL (Query Params)
     const url = new URL(req.url);
     const paramId = url.searchParams.get("id") || url.searchParams.get("data.id");
     const topic = url.searchParams.get("topic") || url.searchParams.get("type");
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
     let paymentId = body?.data?.id || paramId;
 
-    // Se a notificação for do tipo merchant_order, buscamos o payment_id dentro da ordem
+    // Tratar notificações do tipo merchant_order
     if ((topic === "merchant_order" || body?.topic === "merchant_order" || body?.type === "merchant_order") && paramId) {
       const resOrder = await fetch(`https://api.mercadopago.com/merchant_orders/${paramId}`, {
         headers: { Authorization: `Bearer ${ACCESS_TOKEN}` }
@@ -55,7 +55,6 @@ Deno.serve(async (req) => {
       if (resOrder.ok) {
         const orderData = await resOrder.json();
         if (orderData.payments && orderData.payments.length > 0) {
-          // Pega o último pagamento associado à ordem
           paymentId = orderData.payments[orderData.payments.length - 1].id;
         }
       }
@@ -69,7 +68,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Consulta detalhes do pagamento na API do Mercado Pago
+    // Consulta detalhes do pagamento no Mercado Pago
     const resposta = await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
       {
@@ -87,7 +86,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Processar external_reference (esperado formato: "availabilityID|patientID")
+    // Extrair external_reference ("availabilityID|patientID")
     const externalRef = pagamento.external_reference || "";
     const [availabilityId, patientId] = externalRef.split("|");
 
@@ -99,7 +98,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 1. Buscar o horário para pegar data, início, fim e psicólogo
+    // 1. Buscar dados do horário
     const { data: slot, error: slotError } = await supabase
       .from("availability")
       .select("*")
@@ -114,7 +113,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Evitar duplicidades de inserção no banco
+    // 2. Verificar duplicidade
     const { data: appointmentExistente } = await supabase
       .from("appointments")
       .select("id")
@@ -128,7 +127,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Atualizar status do horário na tabela availability para "booked"
+    // 3. Atualizar status do horário para "booked"
     const { error: updateError } = await supabase
       .from("availability")
       .update({ status: "booked" })
@@ -136,16 +135,13 @@ Deno.serve(async (req) => {
 
     if (updateError) throw updateError;
 
-    // 4. Criar o agendamento na tabela appointments
+    // 4. Inserir agendamento (apenas colunas existentes na tabela appointments)
     const { error: insertError } = await supabase
       .from("appointments")
       .insert({
         availability_id: availabilityId,
         psychologist_id: slot.psychologist_id,
         patient_id: patientId,
-        date: slot.date,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
         status: "confirmed",
         payment_id: String(paymentId),
         price: pagamento.transaction_amount || 0
