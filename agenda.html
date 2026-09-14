@@ -153,13 +153,14 @@
   }
 
   function formatarDataLonga(dataStr){
+    if(!dataStr) return "";
     const [ano, mes, dia] = dataStr.split("-");
     const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
     return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
   }
 
   function formatarHora(hms){
-    return hms.slice(0, 5);
+    return hms ? hms.slice(0, 5) : "";
   }
 
   async function carregarSlots(){
@@ -242,10 +243,11 @@
   const STATUS_LABEL_CONSULTA = { pending: "Aguardando sua confirmação", confirmed: "Confirmada", completed: "Concluída", cancelled: "Cancelada" };
 
   function formatarDataHora(dataStr, inicio, fim){
+    if(!dataStr) return "Data a definir";
     const [ano, mes, dia] = dataStr.split("-");
     const d = new Date(Number(ano), Number(mes) - 1, Number(dia));
     return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }) +
-      " · " + inicio.slice(0,5) + " – " + fim.slice(0,5);
+      " · " + (inicio ? inicio.slice(0,5) : "") + " – " + (fim ? fim.slice(0,5) : "");
   }
 
   async function carregarConsultas(){
@@ -267,7 +269,7 @@
     }
 
     if (!consultas || consultas.length === 0) {
-      listaConsultas.innerHTML = '<div class="vazio">Nenhuma solicitação no momento.</div>';
+      listaConsultas.innerHTML = '<div class="vazio">Nenhuma solicitação ou consulta confirmada no momento.</div>';
       return;
     }
 
@@ -294,6 +296,9 @@
       const div = document.createElement("div");
       div.className = "card-consulta";
 
+      const slot = c.availability || {};
+      const roomUrl = c.jitsi_room_url || `https://meet.jit.si/PsiOnline_${c.id}`;
+
       let acoes = "";
       if (c.status === "pending") {
         acoes =
@@ -303,8 +308,8 @@
           '</div>';
       } else if (c.status === "confirmed") {
         acoes =
-          '<p class="aviso-jitsi">Sala de vídeo gerada automaticamente:</p>' +
-          '<a class="link-jitsi" href="' + c.jitsi_room_url + '" target="_blank" rel="noopener noreferrer">Entrar na sala</a>' +
+          '<p class="aviso-jitsi">Sala de vídeo da consulta:</p>' +
+          '<a class="link-jitsi" href="' + roomUrl + '" target="_blank" rel="noopener noreferrer">Entrar na sala</a>' +
           '<div class="acoes-consulta">' +
             '<button class="concluir" data-acao="concluir" data-id="' + c.id + '">Marcar como concluída</button>' +
             '<button class="cancelar" data-acao="cancelar" data-id="' + c.id + '">Cancelar</button>' +
@@ -313,9 +318,9 @@
 
       div.innerHTML =
         '<div class="topo-card">' +
-          '<div><p class="quem">' + nomePorPatientId[c.patient_id] + '</p>' +
-          '<p class="quando">' + formatarDataHora(c.availability.date, c.availability.start_time, c.availability.end_time) + '</p></div>' +
-          '<span class="badge ' + c.status + '">' + STATUS_LABEL_CONSULTA[c.status] + '</span>' +
+          '<div><p class="quem">' + (nomePorPatientId[c.patient_id] || "Paciente") + '</p>' +
+          '<p class="quando">' + formatarDataHora(slot.date, slot.start_time, slot.end_time) + '</p></div>' +
+          '<span class="badge ' + c.status + '">' + (STATUS_LABEL_CONSULTA[c.status] || c.status) + '</span>' +
         '</div>' + acoes;
 
       listaConsultas.appendChild(div);
